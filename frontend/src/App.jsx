@@ -17,7 +17,7 @@ function App() {
     setError("");
     setResult(null);
 
-    // Required field validation
+    // Required fields
     if (!question.trim()) {
       setError("Please enter a question.");
       return;
@@ -28,14 +28,8 @@ function App() {
       return;
     }
 
-    // At least one reference source is recommended
-    if (!referenceAnswer.trim() && !sourceDocument.trim()) {
-      setError(
-        "Please provide either a reference answer or reference source/document."
-      );
-      return;
-    }
-
+    // Reference answer and source document are OPTIONAL.
+    // If they are empty, the backend will use retrieved evidence.
     setLoading(true);
 
     try {
@@ -360,6 +354,7 @@ function App() {
                   </div>
 
                 </div>
+
               </div>
             )}
 
@@ -406,16 +401,16 @@ function App() {
 
                     <p>
                       {result.verdict === "CORRECT" &&
-                        "The response is supported by the reference information."
+                        "The response is supported by the available evidence."
                       }
 
                       {result.verdict ===
                         "PARTIALLY CORRECT" &&
-                        "The response contains the expected fact but does not fully answer the question."
+                        "The response contains useful information but may not fully answer the question."
                       }
 
                       {result.verdict === "INCORRECT" &&
-                        "The response contradicts the expected information."
+                        "The response contradicts or is not sufficiently supported by the available information."
                       }
                     </p>
 
@@ -705,6 +700,7 @@ function App() {
           </div>
 
           <div className="tech-items">
+
             <span>
               Sentence Transformers
             </span>
@@ -720,6 +716,7 @@ function App() {
             <span>
               Contradiction Detection
             </span>
+
           </div>
 
         </section>
@@ -727,6 +724,7 @@ function App() {
       </main>
 
       <footer>
+
         <span>
           ResponseGuard
         </span>
@@ -734,6 +732,7 @@ function App() {
         <span>
           AI Response Validation System
         </span>
+
       </footer>
 
     </div>
