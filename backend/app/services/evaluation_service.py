@@ -1,15 +1,18 @@
 from backend.app.database import save_evaluation
-
 from backend.app.models.evaluation import EvaluationInput
-
 from knowledge_base.retrieval.retrieve import retrieve
-
 from backend.app.services.validation_service import validate_response
+
+from evaluation.orchestrator import evaluate_response
 
 
 def process_evaluation(
     data: EvaluationInput
 ) -> dict:
+
+    # ---------------------------------------------------------
+    # 1. Retrieve supporting evidence
+    # ---------------------------------------------------------
 
     retrieved = retrieve(
         data.question,
@@ -51,12 +54,43 @@ def process_evaluation(
             )
         })
 
+    # ---------------------------------------------------------
+    # 2. Existing validation / overall scoring
+    # ---------------------------------------------------------
+
     validation = validate_response(
         question=data.question,
         ai_response=data.ai_response,
         reference_answer=data.reference_answer,
         evidence=evidence
     )
+
+    # ---------------------------------------------------------
+    # 3. Run M2 Evaluation Orchestrator
+    # ---------------------------------------------------------
+
+    agent_results = evaluate_response(
+        question=data.question,
+        ai_response=data.ai_response,
+        reference_answer=data.reference_answer,
+        evidence=evidence
+    )
+
+    # ---------------------------------------------------------
+    # 4. Attach agent results to validation result
+    # ---------------------------------------------------------
+
+    validation["relevance"] = agent_results["relevance"]
+
+    validation["accuracy"] = agent_results["accuracy"]
+
+    validation["hallucination"] = agent_results["hallucination"]
+
+    validation["completeness"] = agent_results["completeness"]
+
+    # ---------------------------------------------------------
+    # 5. Save evaluation
+    # ---------------------------------------------------------
 
     submission_id = save_evaluation(
         question=data.question,
@@ -65,6 +99,10 @@ def process_evaluation(
         source_document=data.source_document,
         validation=validation
     )
+
+    # ---------------------------------------------------------
+    # 6. Return complete result
+    # ---------------------------------------------------------
 
     return {
         "status": "received",

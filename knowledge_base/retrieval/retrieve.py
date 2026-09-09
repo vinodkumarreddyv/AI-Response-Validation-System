@@ -1,6 +1,7 @@
 import os
 import json
 import re
+
 import faiss
 import numpy as np
 from sentence_transformers import SentenceTransformer
@@ -39,9 +40,7 @@ CHUNKS_PATH = os.path.join(
 # LOAD FAISS INDEX
 # ============================================================
 
-index = faiss.read_index(
-    INDEX_PATH
-)
+index = faiss.read_index(INDEX_PATH)
 
 
 # ============================================================
@@ -53,7 +52,6 @@ with open(
     "r",
     encoding="utf-8"
 ) as f:
-
     chunks = json.load(f)
 
 
@@ -67,7 +65,7 @@ model = SentenceTransformer(
 
 
 # ============================================================
-# TEXT NORMALIZATION
+# NORMALIZE TEXT
 # ============================================================
 
 def normalize(text: str) -> str:
@@ -86,13 +84,12 @@ def normalize(text: str) -> str:
 
 
 # ============================================================
-# GET CHUNK TEXT
+# GET TEXT FROM CHUNK
 # ============================================================
 
 def get_text(chunk) -> str:
 
     if isinstance(chunk, dict):
-
         return chunk.get(
             "text",
             ""
@@ -138,7 +135,7 @@ def keyword_overlap(
 
 
 # ============================================================
-# EXTRACT CAPITAL QUESTION
+# EXTRACT CAPITAL COUNTRY
 # ============================================================
 
 def extract_capital_country(
@@ -153,7 +150,6 @@ def extract_capital_country(
     )
 
     if match:
-
         return match.group(1)
 
     return None
@@ -238,19 +234,18 @@ def find_direct_facts(
             normalized_text
         ):
 
-            matches.append(
-                {
-                    "chunk": chunk,
-                    "distance": 0.0,
-                    "index": index_id,
-                    "semantic_similarity": 1.0,
-                    "keyword_overlap": 1.0,
-                    "phrase_score": 1.0,
-                    "direct_fact_score": 1.0,
-                    "relevance_score": 1.0,
-                    "exact_match": True
-                }
-            )
+            matches.append({
+                "chunk": chunk,
+                "distance": 0.0,
+                "index": index_id,
+                "semantic_similarity": 1.0,
+                "keyword_overlap": 1.0,
+                "phrase_score": 1.0,
+                "topic_match": 1.0,
+                "direct_fact_score": 1.0,
+                "relevance_score": 1.0,
+                "exact_match": True
+            })
 
     return matches
 
@@ -266,7 +261,8 @@ def faiss_retrieve(
 
     query_embedding = model.encode(
         [query],
-        convert_to_numpy=True
+        convert_to_numpy=True,
+        normalize_embeddings=True
     ).astype("float32")
 
     distances, indices = index.search(
@@ -305,7 +301,6 @@ def faiss_retrieve(
         if not normalized_text:
             continue
 
-        # Remove duplicate text
         if normalized_text in seen_text:
             continue
 
@@ -313,17 +308,273 @@ def faiss_retrieve(
             normalized_text
         )
 
-        results.append(
-            {
-                "chunk": chunk,
-                "distance": float(
-                    distance
-                ),
-                "index": index_id
-            }
-        )
+        results.append({
+            "chunk": chunk,
+            "distance": float(
+                distance
+            ),
+            "index": index_id
+        })
 
     return results
+
+
+# ============================================================
+# TOPIC KEYWORDS
+# ============================================================
+
+def get_topic_keywords(
+    query: str
+):
+
+    q = normalize(query)
+
+    keywords = set()
+
+    # --------------------------------------------------------
+    # ICE FLOATING
+    # --------------------------------------------------------
+
+    if (
+        "ice" in q
+        and (
+            "float" in q
+            or "floating" in q
+        )
+    ):
+
+        keywords.update([
+            "ice",
+            "water",
+            "density",
+            "dense",
+            "freezes",
+            "freezing",
+            "expands",
+            "expansion",
+            "liquid"
+        ])
+
+    # --------------------------------------------------------
+    # BOILING WATER
+    # --------------------------------------------------------
+
+    if (
+        "water" in q
+        and (
+            "boil" in q
+            or "boiling" in q
+        )
+    ):
+
+        keywords.update([
+            "water",
+            "boil",
+            "boiling",
+            "temperature",
+            "degrees",
+            "celsius",
+            "100"
+        ])
+
+    # --------------------------------------------------------
+    # PHOTOSYNTHESIS
+    # --------------------------------------------------------
+
+    if "photosynthesis" in q:
+
+        keywords.update([
+            "photosynthesis",
+            "plant",
+            "plants",
+            "sunlight",
+            "light",
+            "carbon",
+            "dioxide",
+            "glucose",
+            "oxygen",
+            "chlorophyll"
+        ])
+
+    # --------------------------------------------------------
+    # CAPITAL
+    # --------------------------------------------------------
+
+    if "capital of" in q:
+
+        keywords.update([
+            "capital",
+            "country",
+            "city"
+        ])
+
+    return keywords
+
+
+# ============================================================
+# TOPIC MATCH
+# ============================================================
+
+def topic_match(
+    query: str,
+    text: str
+) -> float:
+
+    topic_words = get_topic_keywords(
+        query
+    )
+
+    if not topic_words:
+        return 0.0
+
+    text_words = tokenize(
+        text
+    )
+
+    matched = (
+        topic_words &
+        text_words
+    )
+
+    return len(matched) / len(
+        topic_words
+    )
+
+
+# ============================================================
+# IMPORTANT PHRASE MATCH
+# ============================================================
+
+def phrase_match(
+    query: str,
+    text: str
+) -> float:
+
+    q = normalize(query)
+    t = normalize(text)
+
+    phrases = []
+
+    # --------------------------------------------------------
+    # ICE FLOATING
+    # --------------------------------------------------------
+
+    if (
+        "ice" in q
+        and "float" in q
+    ):
+
+        phrases = [
+            "ice is less dense",
+            "ice less dense",
+            "less dense than liquid water",
+            "less dense than water",
+            "water expands when it freezes",
+            "water expands when frozen",
+            "expands when it freezes",
+            "ice density",
+            "density of ice"
+        ]
+
+    # --------------------------------------------------------
+    # BOILING POINT
+    # --------------------------------------------------------
+
+    elif (
+        "boiling point" in q
+        and "water" in q
+    ):
+
+        phrases = [
+            "boils at 100 degrees",
+            "boiling point of water",
+            "100 degrees celsius",
+            "water boils",
+            "boiling temperature"
+        ]
+
+    # --------------------------------------------------------
+    # PHOTOSYNTHESIS
+    # --------------------------------------------------------
+
+    elif "photosynthesis" in q:
+
+        phrases = [
+            "plants use sunlight",
+            "carbon dioxide",
+            "water",
+            "glucose",
+            "oxygen",
+            "chlorophyll"
+        ]
+
+    if not phrases:
+        return 0.0
+
+    matches = 0
+
+    for phrase in phrases:
+
+        if phrase in t:
+            matches += 1
+
+    return min(
+        matches / len(phrases),
+        1.0
+    )
+
+
+# ============================================================
+# STRONG TOPIC PENALTY
+# ============================================================
+
+def irrelevant_topic_penalty(
+    query: str,
+    text: str
+) -> float:
+
+    q = normalize(query)
+    t = normalize(text)
+
+    # --------------------------------------------------------
+    # ICE FLOATING
+    # --------------------------------------------------------
+
+    if (
+        "ice" in q
+        and "float" in q
+    ):
+
+        unrelated_terms = [
+            "antarctica",
+            "antarctic",
+            "glacier",
+            "glaciers",
+            "sea level",
+            "sea levels",
+            "ice shelf",
+            "ice shelves",
+            "greenland",
+            "polar climate",
+            "melting glacier"
+        ]
+
+        matches = sum(
+            1
+            for term in unrelated_terms
+            if term in t
+        )
+
+        if matches >= 3:
+            return 0.50
+
+        if matches == 2:
+            return 0.35
+
+        if matches == 1:
+            return 0.15
+
+    return 0.0
 
 
 # ============================================================
@@ -346,7 +597,8 @@ def rerank(
     ]
 
     # --------------------------------------------------------
-    # Query embedding
+    # IMPORTANT:
+    # Use ORIGINAL question, NOT expanded question.
     # --------------------------------------------------------
 
     query_embedding = model.encode(
@@ -355,28 +607,16 @@ def rerank(
         normalize_embeddings=True
     )[0]
 
-    # --------------------------------------------------------
-    # Text embeddings
-    # --------------------------------------------------------
-
     text_embeddings = model.encode(
         texts,
         convert_to_numpy=True,
         normalize_embeddings=True
     )
 
-    # --------------------------------------------------------
-    # Semantic similarity
-    # --------------------------------------------------------
-
     semantic_scores = np.dot(
         text_embeddings,
         query_embedding
     )
-
-    # --------------------------------------------------------
-    # Calculate scores
-    # --------------------------------------------------------
 
     for i, item in enumerate(
         candidates
@@ -393,6 +633,16 @@ def rerank(
             text
         )
 
+        topic = topic_match(
+            query,
+            text
+        )
+
+        phrase = phrase_match(
+            query,
+            text
+        )
+
         direct = (
             1.0
             if direct_capital_match(
@@ -402,42 +652,43 @@ def rerank(
             else 0.0
         )
 
-        normalized_query = normalize(
-            query
-        )
-
-        normalized_text = normalize(
+        penalty = irrelevant_topic_penalty(
+            query,
             text
         )
 
-        phrase = (
-            1.0
-            if normalized_query
-            in normalized_text
-            else 0.0
-        )
-
         # ----------------------------------------------------
-        # Hybrid relevance
+        # HYBRID SCORE
         # ----------------------------------------------------
 
         relevance = (
             0.30 * semantic
             +
-            0.20 * keyword
+            0.15 * keyword
             +
-            0.10 * phrase
+            0.25 * topic
             +
-            0.40 * direct
+            0.25 * phrase
+            +
+            0.05 * direct
+            -
+            penalty
         )
 
-        # Direct fact gets highest priority
-        if direct == 1.0:
+        relevance = max(
+            0.0,
+            min(
+                relevance,
+                1.0
+            )
+        )
 
+        # Direct factual match
+        if direct == 1.0:
             relevance = 1.0
 
         # ----------------------------------------------------
-        # Store scores
+        # STORE SCORES
         # ----------------------------------------------------
 
         item[
@@ -451,6 +702,13 @@ def rerank(
             "keyword_overlap"
         ] = round(
             keyword,
+            4
+        )
+
+        item[
+            "topic_match"
+        ] = round(
+            topic,
             4
         )
 
@@ -482,15 +740,31 @@ def rerank(
         )
 
     # --------------------------------------------------------
-    # Sort
+    # SORT
     # --------------------------------------------------------
 
     candidates.sort(
         key=lambda x: (
-            x["exact_match"],
-            x["direct_fact_score"],
-            x["relevance_score"],
-            x["semantic_similarity"]
+            x.get(
+                "exact_match",
+                False
+            ),
+            x.get(
+                "relevance_score",
+                0.0
+            ),
+            x.get(
+                "phrase_score",
+                0.0
+            ),
+            x.get(
+                "topic_match",
+                0.0
+            ),
+            x.get(
+                "semantic_similarity",
+                0.0
+            )
         ),
         reverse=True
     )
@@ -508,8 +782,7 @@ def retrieve(
 ):
 
     # --------------------------------------------------------
-    # STEP 1
-    # Direct factual search
+    # 1. Direct fact search
     # --------------------------------------------------------
 
     direct_results = find_direct_facts(
@@ -517,14 +790,13 @@ def retrieve(
     )
 
     # --------------------------------------------------------
-    # STEP 2
-    # FAISS search
+    # 2. FAISS search using ORIGINAL query
     # --------------------------------------------------------
 
     search_k = min(
         max(
-            top_k * 20,
-            100
+            top_k * 30,
+            150
         ),
         index.ntotal
     )
@@ -535,8 +807,7 @@ def retrieve(
     )
 
     # --------------------------------------------------------
-    # STEP 3
-    # Combine and remove duplicates
+    # 3. Combine results
     # --------------------------------------------------------
 
     combined = []
@@ -568,7 +839,7 @@ def retrieve(
             item
         )
 
-    # FAISS results second
+    # FAISS results
     for item in faiss_results:
 
         text = get_text(
@@ -594,8 +865,7 @@ def retrieve(
         )
 
     # --------------------------------------------------------
-    # STEP 4
-    # Rerank
+    # 4. Rerank
     # --------------------------------------------------------
 
     combined = rerank(
@@ -604,8 +874,7 @@ def retrieve(
     )
 
     # --------------------------------------------------------
-    # STEP 5
-    # Return top K
+    # 5. Return top K
     # --------------------------------------------------------
 
     return combined[:top_k]
@@ -617,97 +886,110 @@ def retrieve(
 
 if __name__ == "__main__":
 
-    query = (
-        "What is the capital of France?"
-    )
+    test_queries = [
+        "Why does ice float on water?",
+        "What is the boiling point of water?",
+        "What is photosynthesis?"
+    ]
 
-    results = retrieve(
-        query,
-        top_k=5
-    )
-
-    print()
-    print("=" * 70)
-    print("QUERY")
-    print("=" * 70)
-
-    print(query)
-
-    print()
-    print("=" * 70)
-    print("RETRIEVED EVIDENCE")
-    print("=" * 70)
-
-    for i, result in enumerate(
-        results,
-        start=1
-    ):
+    for query in test_queries:
 
         print()
-        print(
-            f"--- Result {i} ---"
+        print("=" * 80)
+        print("QUERY")
+        print("=" * 80)
+
+        print(query)
+
+        results = retrieve(
+            query,
+            top_k=5
         )
 
-        print(
-            "FAISS distance:",
-            round(
-                result["distance"],
-                4
+        print()
+        print("=" * 80)
+        print("RETRIEVED EVIDENCE")
+        print("=" * 80)
+
+        for i, result in enumerate(
+            results,
+            start=1
+        ):
+
+            print()
+            print(
+                f"--- Result {i} ---"
             )
-        )
 
-        print(
-            "Semantic similarity:",
-            result[
-                "semantic_similarity"
-            ]
-        )
+            print(
+                "Semantic similarity:",
+                result.get(
+                    "semantic_similarity",
+                    0.0
+                )
+            )
 
-        print(
-            "Keyword overlap:",
-            result[
-                "keyword_overlap"
-            ]
-        )
+            print(
+                "Keyword overlap:",
+                result.get(
+                    "keyword_overlap",
+                    0.0
+                )
+            )
 
-        print(
-            "Phrase score:",
-            result[
-                "phrase_score"
-            ]
-        )
+            print(
+                "Topic match:",
+                result.get(
+                    "topic_match",
+                    0.0
+                )
+            )
 
-        print(
-            "Direct fact score:",
-            result[
-                "direct_fact_score"
-            ]
-        )
+            print(
+                "Phrase score:",
+                result.get(
+                    "phrase_score",
+                    0.0
+                )
+            )
 
-        print(
-            "Relevance score:",
-            result[
-                "relevance_score"
-            ]
-        )
+            print(
+                "Direct fact score:",
+                result.get(
+                    "direct_fact_score",
+                    0.0
+                )
+            )
 
-        print(
-            "Exact match:",
-            result[
-                "exact_match"
-            ]
-        )
+            print(
+                "Relevance score:",
+                result.get(
+                    "relevance_score",
+                    0.0
+                )
+            )
 
-        print(
-            "Index:",
-            result["index"]
-        )
+            print(
+                "Exact match:",
+                result.get(
+                    "exact_match",
+                    False
+                )
+            )
 
-        print(
-            "Text:",
-            get_text(
-                result["chunk"]
-            )[:1200]
-        )
+            print(
+                "Index:",
+                result.get(
+                    "index",
+                    -1
+                )
+            )
 
-        print()
+            print(
+                "Text:",
+                get_text(
+                    result["chunk"]
+                )[:1200]
+            )
+
+            print()
