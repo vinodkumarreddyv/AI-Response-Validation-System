@@ -27,7 +27,10 @@ def _normalize_evidence(evidence):
         if not isinstance(item, dict):
             continue
 
-        text = item.get("text", item.get("chunk", ""))
+        text = item.get(
+            "text",
+            item.get("chunk", "")
+        )
 
         if isinstance(text, dict):
             text = text.get("text", "")
@@ -53,24 +56,44 @@ def _normalize_evidence(evidence):
 
         normalized.append({
             "text": text,
+
             "semantic_similarity": semantic_similarity,
+
             "relevance_score": relevance_score,
+
             "keyword_overlap": _safe_float(
-                item.get("keyword_overlap", 0.0)
+                item.get(
+                    "keyword_overlap",
+                    0.0
+                )
             ),
+
             "phrase_score": _safe_float(
-                item.get("phrase_score", 0.0)
+                item.get(
+                    "phrase_score",
+                    0.0
+                )
             ),
+
             "direct_fact_score": _safe_float(
-                item.get("direct_fact_score", 0.0)
+                item.get(
+                    "direct_fact_score",
+                    0.0
+                )
             ),
+
             "exact_match": item.get(
                 "exact_match",
                 False
             ),
+
             "distance": _safe_float(
-                item.get("distance", 0.0)
+                item.get(
+                    "distance",
+                    0.0
+                )
             ),
+
             "index": item.get(
                 "index",
                 -1
@@ -103,7 +126,10 @@ def _enrich_evidence_from_accuracy(
 
     for item in evidence:
 
-        text = item.get("text", "").strip()
+        text = item.get(
+            "text",
+            ""
+        ).strip()
 
         if not text:
             continue
@@ -113,14 +139,19 @@ def _enrich_evidence_from_accuracy(
         for support in supporting:
 
             support_text = str(
-                support.get("text", "")
+                support.get(
+                    "text",
+                    ""
+                )
             ).strip()
 
             similarity = _safe_float(
-                support.get("similarity", 0.0)
+                support.get(
+                    "similarity",
+                    0.0
+                )
             )
 
-            # Match the evidence text approximately.
             if (
                 text == support_text
                 or text in support_text
@@ -133,10 +164,18 @@ def _enrich_evidence_from_accuracy(
 
         if best_similarity > 0:
 
-            item["semantic_similarity"] = best_similarity
+            item["semantic_similarity"] = (
+                best_similarity
+            )
 
-            if item.get("relevance_score", 0.0) == 0.0:
-                item["relevance_score"] = best_similarity
+            if item.get(
+                "relevance_score",
+                0.0
+            ) == 0.0:
+
+                item["relevance_score"] = (
+                    best_similarity
+                )
 
     return evidence
 
@@ -158,13 +197,19 @@ def evaluate_response(
     4. Completeness Judge
 
     The agents use the same normalized evidence.
+
+    If a reference answer is available,
+    it is also passed to the Hallucination Agent
+    as the primary reference for verification.
     """
 
     # =========================================================
     # PREPARE EVIDENCE
     # =========================================================
 
-    evidence = _normalize_evidence(evidence)
+    evidence = _normalize_evidence(
+        evidence
+    )
 
     # =========================================================
     # 1. RELEVANCE
@@ -197,10 +242,22 @@ def evaluate_response(
     # =========================================================
     # 3. HALLUCINATION
     # =========================================================
+    #
+    # IMPORTANT:
+    # Pass reference_answer to the Hallucination Agent.
+    #
+    # When a reference answer is provided, the Hallucination
+    # Agent will prioritize the reference answer over noisy
+    # retrieved RAG chunks.
+    #
+    # When no reference answer is provided, it will fall back
+    # to retrieved RAG evidence.
+    # =========================================================
 
     hallucination_result = evaluate_hallucination(
         ai_response=ai_response,
-        evidence=evidence
+        evidence=evidence,
+        reference_answer=reference_answer
     )
 
     # =========================================================
@@ -220,6 +277,7 @@ def evaluate_response(
 
     return {
         "question": question,
+
         "ai_response": ai_response,
 
         "relevance": relevance_result,

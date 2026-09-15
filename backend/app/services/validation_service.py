@@ -53,6 +53,95 @@ def cosine_similarity(text1: str, text2: str) -> float:
 
 
 # ============================================================
+# NUMBER EXTRACTION
+# ============================================================
+
+def extract_numbers(text: str) -> list[float]:
+    """
+    Extract numeric values from text.
+
+    Examples:
+        100
+        20
+        3.14
+        2026
+    """
+
+    if not text:
+        return []
+
+    values = re.findall(
+        r"\b\d+(?:\.\d+)?\b",
+        str(text)
+    )
+
+    return [
+        float(value)
+        for value in values
+    ]
+
+
+# ============================================================
+# GENERAL NUMERIC CONTRADICTION
+# ============================================================
+
+def check_numeric_contradiction(
+    ai_response: str,
+    reference_answer: str | None
+) -> bool:
+    """
+    Detect conflicting numeric factual values between
+    the AI response and the reference answer.
+
+    Example:
+
+        Reference:
+        Water boils at 100 degrees Celsius.
+
+        Response:
+        Water boils at 20 degrees Celsius.
+
+        Result:
+        Contradiction = True
+    """
+
+    if not ai_response or not reference_answer:
+        return False
+
+    response_numbers = extract_numbers(
+        ai_response
+    )
+
+    reference_numbers = extract_numbers(
+        reference_answer
+    )
+
+    if not response_numbers or not reference_numbers:
+        return False
+
+    # If the response and reference are semantically unrelated,
+    # do not automatically treat different numbers as a
+    # contradiction.
+    similarity = cosine_similarity(
+        ai_response,
+        reference_answer
+    )
+
+    if similarity < 0.55:
+        return False
+
+    # Same number is not a contradiction.
+    for response_number in response_numbers:
+
+        for reference_number in reference_numbers:
+
+            if response_number != reference_number:
+                return True
+
+    return False
+
+
+# ============================================================
 # EXPECTED FACT
 # ============================================================
 
@@ -64,7 +153,9 @@ def extract_expected_fact(
     if not reference_answer:
         return None
 
-    return normalize(reference_answer)
+    return normalize(
+        reference_answer
+    )
 
 
 # ============================================================
@@ -80,9 +171,17 @@ def check_direct_fact(
     if not expected_fact:
         return False, False
 
-    question = normalize(question)
-    response = normalize(ai_response)
-    fact = normalize(expected_fact)
+    question = normalize(
+        question
+    )
+
+    response = normalize(
+        ai_response
+    )
+
+    fact = normalize(
+        expected_fact
+    )
 
     # ========================================================
     # CAPITAL QUESTION
@@ -93,8 +192,6 @@ def check_direct_fact(
         # ----------------------------------------------------
         # CASE 1:
         # Exact short answer
-        #
-        # "Paris" -> CORRECT
         # ----------------------------------------------------
 
         if response == fact:
@@ -103,8 +200,6 @@ def check_direct_fact(
         # ----------------------------------------------------
         # CASE 2:
         # Full correct sentence
-        #
-        # "Paris is the capital of France"
         # ----------------------------------------------------
 
         correct_patterns = [
@@ -122,19 +217,15 @@ def check_direct_fact(
 
         for pattern in correct_patterns:
 
-            if re.search(pattern, response):
+            if re.search(
+                pattern,
+                response
+            ):
                 return True, False
 
         # ----------------------------------------------------
         # CASE 3:
         # Wrong capital
-        #
-        # "London"
-        #
-        # We only mark it contradiction when the response
-        # explicitly claims a capital relationship OR when
-        # the answer is a simple alternative to the expected
-        # capital.
         # ----------------------------------------------------
 
         wrong_capital_patterns = [
@@ -152,16 +243,17 @@ def check_direct_fact(
 
         for pattern in wrong_capital_patterns:
 
-            if re.search(pattern, response):
+            if re.search(
+                pattern,
+                response
+            ):
 
                 if fact not in response:
                     return False, True
 
         # ----------------------------------------------------
-        # Simple one-word/destination answer.
-        #
-        # If response is a different short location, treat it
-        # as incorrect for a capital question.
+        # CASE 4:
+        # Simple alternative answer
         # ----------------------------------------------------
 
         if (
@@ -173,10 +265,8 @@ def check_direct_fact(
             return False, True
 
         # ----------------------------------------------------
-        # Expected fact mentioned in a non-answer sentence
-        #
-        # "Paris is a major city in France."
-        # -> PARTIAL
+        # CASE 5:
+        # Expected fact mentioned but not answering directly
         # ----------------------------------------------------
 
         if fact in response:
@@ -188,11 +278,37 @@ def check_direct_fact(
     # GENERAL FACT
     # ========================================================
 
+    # Exact answer
     if response == fact:
         return True, False
 
+    # Reference answer appears inside response
     if fact in response:
         return True, False
+
+    # --------------------------------------------------------
+    # GENERAL NUMERIC CONTRADICTION
+    # --------------------------------------------------------
+    #
+    # This handles factual questions such as:
+    #
+    # Reference:
+    # "Water boils at 100 degrees Celsius."
+    #
+    # Response:
+    # "Water boils at 20 degrees Celsius."
+    #
+    # The response is semantically related but contains
+    # a conflicting factual value.
+    # --------------------------------------------------------
+
+    numeric_contradiction = check_numeric_contradiction(
+        ai_response=ai_response,
+        reference_answer=expected_fact
+    )
+
+    if numeric_contradiction:
+        return False, True
 
     return False, False
 
@@ -257,7 +373,10 @@ def validate_response(
 
     for item in evidence:
 
-        text = item.get("text", "")
+        text = item.get(
+            "text",
+            ""
+        )
 
         score = cosine_similarity(
             ai_response,
@@ -266,23 +385,32 @@ def validate_response(
 
         evidence_scores.append({
             "text": text,
-            "similarity": round(score, 4),
+
+            "similarity": round(
+                score,
+                4
+            ),
+
             "distance": item.get(
                 "distance",
                 0.0
             ),
+
             "index": item.get(
                 "index",
                 -1
             ),
+
             "relevance_score": item.get(
                 "relevance_score",
                 0.0
             ),
+
             "direct_fact_score": item.get(
                 "direct_fact_score",
                 0.0
             ),
+
             "exact_match": item.get(
                 "exact_match",
                 False
@@ -336,7 +464,7 @@ def validate_response(
     # ========================================================
 
     # --------------------------------------------------------
-    # Definitely wrong
+    # DEFINITELY WRONG
     # --------------------------------------------------------
 
     if direct_fact_contradiction:
@@ -344,7 +472,7 @@ def validate_response(
         final_score = 0.20
 
     # --------------------------------------------------------
-    # Definitely correct
+    # DEFINITELY CORRECT
     # --------------------------------------------------------
 
     elif direct_fact_match:
@@ -357,7 +485,9 @@ def validate_response(
 
     elif (
         expected_fact
-        and expected_fact in normalize(ai_response)
+        and expected_fact in normalize(
+            ai_response
+        )
     ):
 
         final_score = 0.60
@@ -392,7 +522,9 @@ def validate_response(
 
     elif (
         expected_fact
-        and expected_fact in normalize(ai_response)
+        and expected_fact in normalize(
+            ai_response
+        )
     ):
 
         verdict = "PARTIALLY CORRECT"
