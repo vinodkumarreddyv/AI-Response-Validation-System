@@ -2,17 +2,13 @@ from backend.app.database import save_evaluation
 from backend.app.models.evaluation import EvaluationInput
 from knowledge_base.retrieval.retrieve import retrieve
 from backend.app.services.validation_service import validate_response
-
 from evaluation.orchestrator import evaluate_response
+from agents.verdict.verdict_agent import evaluate_verdict
 
 
 def process_evaluation(
     data: EvaluationInput
 ) -> dict:
-
-    # ---------------------------------------------------------
-    # 1. Retrieve supporting evidence
-    # ---------------------------------------------------------
 
     retrieved = retrieve(
         data.question,
@@ -54,20 +50,12 @@ def process_evaluation(
             )
         })
 
-    # ---------------------------------------------------------
-    # 2. Existing validation / overall scoring
-    # ---------------------------------------------------------
-
     validation = validate_response(
         question=data.question,
         ai_response=data.ai_response,
         reference_answer=data.reference_answer,
         evidence=evidence
     )
-
-    # ---------------------------------------------------------
-    # 3. Run M2 Evaluation Orchestrator
-    # ---------------------------------------------------------
 
     agent_results = evaluate_response(
         question=data.question,
@@ -76,21 +64,24 @@ def process_evaluation(
         evidence=evidence
     )
 
-    # ---------------------------------------------------------
-    # 4. Attach agent results to validation result
-    # ---------------------------------------------------------
-
     validation["relevance"] = agent_results["relevance"]
-
     validation["accuracy"] = agent_results["accuracy"]
-
     validation["hallucination"] = agent_results["hallucination"]
-
     validation["completeness"] = agent_results["completeness"]
 
-    # ---------------------------------------------------------
-    # 5. Save evaluation
-    # ---------------------------------------------------------
+    verdict_result = evaluate_verdict(
+        relevance=agent_results["relevance"],
+        accuracy=agent_results["accuracy"],
+        hallucination=agent_results["hallucination"],
+        completeness=agent_results["completeness"]
+    )
+
+    validation["verdict"] = verdict_result["verdict"]
+    validation["final_score"] = verdict_result["final_score"]
+    validation["weighted_score"] = verdict_result["weighted_score"]
+    validation["dimension_scores"] = verdict_result["dimension_scores"]
+    validation["weights"] = verdict_result["weights"]
+    validation["verdict_reasoning"] = verdict_result["reasoning"]
 
     submission_id = save_evaluation(
         question=data.question,
@@ -99,10 +90,6 @@ def process_evaluation(
         source_document=data.source_document,
         validation=validation
     )
-
-    # ---------------------------------------------------------
-    # 6. Return complete result
-    # ---------------------------------------------------------
 
     return {
         "status": "received",
@@ -113,5 +100,6 @@ def process_evaluation(
         "reference_answer": data.reference_answer,
         "source_document": data.source_document,
         "retrieved_evidence": evidence,
-        "validation": validation
+        "validation": validation,
+        "verdict": verdict_result
     }
