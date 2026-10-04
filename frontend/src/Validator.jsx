@@ -7,13 +7,54 @@ function App() {
   const [question, setQuestion] = useState("");
   const [aiResponse, setAiResponse] = useState("");
   const [referenceAnswer, setReferenceAnswer] = useState("");
-  const [evidence, setEvidence] = useState(
-    "Paris is the capital of France."
-  );
+  const [evidence, setEvidence] = useState("");
+  const [referenceFile, setReferenceFile] = useState(null);
+  const [uploadingReference, setUploadingReference] = useState(false);
 
   const [result, setResult] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+
+  const handleReferenceUpload = async (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    setError("");
+    setUploadingReference(true);
+
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+
+      const response = await fetch(
+        "http://127.0.0.1:8000/api/evaluation/upload-reference",
+        {
+          method: "POST",
+          body: formData,
+        }
+      );
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(
+          data.detail
+            ? JSON.stringify(data.detail)
+            : `Reference upload failed with status ${response.status}`
+        );
+      }
+
+      setReferenceFile({ name: data.filename, size: file.size });
+      setEvidence(data.text || "");
+    } catch (err) {
+      console.error(err);
+      setReferenceFile(null);
+      setEvidence("");
+      setError(err.message || "Unable to upload reference document.");
+    } finally {
+      setUploadingReference(false);
+    }
+  };
 
   const validateResponse = async () => {
     setError("");
@@ -81,7 +122,8 @@ function App() {
     setQuestion("");
     setAiResponse("");
     setReferenceAnswer("");
-    setEvidence("Paris is the capital of France.");
+    setEvidence("");
+    setReferenceFile(null);
     setResult(null);
     setError("");
   };
@@ -110,23 +152,7 @@ function App() {
 
   return (
     <div className="app">
-      {/* HEADER */}
-      <header className="header">
-        <div className="brand">
-          <div className="brand-icon">AI</div>
-
-          <div>
-            <h1>ResponseGuard</h1>
-            <p>AI Response Validation System</p>
-          </div>
-        </div>
-
-        <div className="status">
-          <span className="status-dot"></span>
-          System Online
-        </div>
-      </header>
-
+       
       {/* MAIN */}
       <main className="container">
 
@@ -136,14 +162,12 @@ function App() {
             <span className="eyebrow">AI QUALITY ASSURANCE</span>
 
             <h2>
-              Validate AI responses
-              <br />
-              with confidence.
+               AI Responses Validation System
             </h2>
 
             <p>
               Compare an AI-generated answer against trusted
-              references and retrieved evidence.
+              references  
             </p>
           </div>
 
@@ -184,6 +208,7 @@ function App() {
                 onChange={(e) => setQuestion(e.target.value)}
                 placeholder="Enter the question asked to the AI..."
                 rows="3"
+                disabled={loading || !!result}
               />
             </div>
 
@@ -195,6 +220,7 @@ function App() {
                 onChange={(e) => setAiResponse(e.target.value)}
                 placeholder="Enter the AI-generated response..."
                 rows="5"
+                disabled={loading || !!result}
               />
             </div>
 
@@ -211,23 +237,94 @@ function App() {
                 }
                 placeholder="Enter the trusted/reference answer..."
                 rows="3"
+                disabled={loading || !!result}
               />
             </div>
 
             <div className="field">
-              <label>
-                Retrieved Evidence
-                <span className="optional">Optional</span>
-              </label>
+  <label>
+    Reference Document
+    <span className="optional">Optional</span>
+  </label>
 
-              <textarea
-                value={evidence}
-                onChange={(e) => setEvidence(e.target.value)}
-                placeholder="Enter supporting evidence..."
-                rows="4"
-              />
-            </div>
+  <div className="reference-upload">
 
+    <label
+      className={`reference-upload-box ${
+        referenceFile ? "has-file" : ""
+      }`}
+    >
+      <div className="upload-icon">
+        <svg
+          width="18"
+          height="18"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" />
+        </svg>
+      </div>
+
+      <div className="upload-content">
+        <strong>
+          {uploadingReference
+            ? "Uploading document..."
+            : referenceFile
+            ? referenceFile.name
+            : "Upload Reference Document"}
+        </strong>
+
+        <span>
+          {referenceFile
+            ? "Document uploaded successfully"
+            : "PDF, DOCX, TXT, CSV, JSON, XLSX"}
+        </span>
+
+        {!referenceFile && (
+          <small>Click to browse or drop a file here</small>
+        )}
+      </div>
+
+      {!referenceFile && (
+        <div className="upload-arrow">
+          →
+        </div>
+      )}
+
+      <input
+        id="reference-document-input"
+        type="file"
+        accept=".pdf,.docx,.txt,.csv,.json,.xlsx"
+        onChange={handleReferenceUpload}
+        disabled={uploadingReference || loading || !!result}
+        hidden
+      />
+    </label>
+
+    {referenceFile && (
+      <div className="reference-file">
+        <span>✓</span>
+        <span>{referenceFile.name}</span>
+
+        <button
+          type="button"
+          disabled={loading || !!result}
+          onClick={() => {
+            setReferenceFile(null);
+            setEvidence("");
+          }}
+        >
+          Remove
+        </button>
+      </div>
+    )}
+
+  </div>
+</div>
             {error && (
               <div className="error-box">
                 <span>⚠</span>
@@ -241,17 +338,22 @@ function App() {
             <button
               className="validate-button"
               onClick={validateResponse}
-              disabled={loading}
+              disabled={loading || !!result}
             >
               {loading ? (
                 <>
                   <span className="spinner"></span>
                   Analyzing response...
                 </>
+              ) : result ? (
+                <>
+                  Response Validated
+                  <span>✓</span>
+                </>
               ) : (
                 <>
-                  Validate Response
-                  <span>→</span>
+                 Validate Response
+                 <span>→</span>
                 </>
               )}
             </button>
@@ -357,12 +459,16 @@ function App() {
                 <div className="metrics">
 
                   <div className="metric">
-                    <span>Reference Similarity</span>
+                    <span>
+                      {result.reference_similarity != null
+                        ? "Reference Similarity"
+                        : "Document Similarity"}
+                    </span>
                     <strong>
                       {result.reference_similarity != null
-                        ? (
-                            result.reference_similarity * 100
-                          ).toFixed(1)
+                        ? (result.reference_similarity * 100).toFixed(1)
+                        : result.best_evidence_similarity != null
+                        ? (result.best_evidence_similarity * 100).toFixed(1)
                         : "—"}
                       %
                     </strong>
@@ -383,7 +489,9 @@ function App() {
                   <div className="metric">
                     <span>Expected Fact</span>
                     <strong className="fact">
-                      {result.expected_fact || "—"}
+                      {result.expected_fact ||
+                         result.evidence_scores?.[0]?.text?.split(/[.!?]/)[0] ||
+                       "—"}
                     </strong>
                   </div>
 
@@ -397,100 +505,82 @@ function App() {
                   </div>
                 </div>
 
-                {/* FACT ANALYSIS */}
-                <div className="analysis-card">
+               {/* FACT / EVIDENCE ANALYSIS */}
+<div className="analysis-card">
 
-                  <div className="analysis-title">
-                    <h4>Fact Analysis</h4>
-                    <span>Validation engine</span>
-                  </div>
+  <div className="analysis-title">
+    <h4>
+      {result.reference_similarity != null
+        ? "Fact Analysis"
+        : "Evidence Analysis"}
+    </h4>
+    <span>Validation engine</span>
+  </div>
 
-                  <div className="analysis-row">
-                    <span>Direct fact match</span>
+  <div className="analysis-row">
+    <span>Evidence support</span>
 
-                    <b
-                      className={
-                        result.direct_fact_match
-                          ? "yes"
-                          : "no"
-                      }
-                    >
-                      {result.direct_fact_match
-                        ? "YES"
-                        : "NO"}
-                    </b>
-                  </div>
+    <b className="yes">
+      {result.best_evidence_similarity != null
+        ? `${(result.best_evidence_similarity * 100).toFixed(1)}%`
+        : "—"}
+    </b>
+  </div>
 
-                  <div className="analysis-row">
-                    <span>Direct contradiction</span>
+  <div className="analysis-row">
+    <span>Direct contradiction</span>
 
-                    <b
-                      className={
-                        result.direct_fact_contradiction
-                          ? "no"
-                          : "yes"
-                      }
-                    >
-                      {result.direct_fact_contradiction
-                        ? "YES"
-                        : "NO"}
-                    </b>
-                  </div>
+    <b className={result.direct_fact_contradiction ? "no" : "yes"}>
+      {result.direct_fact_contradiction ? "YES" : "NO"}
+    </b>
+  </div>
 
-                  <div className="analysis-row">
-                    <span>Reference exact match</span>
+  <div className="analysis-row">
+    <span>
+      {result.reference_similarity != null
+        ? "Reference exact match"
+        : "Reference answer"}
+    </span>
 
-                    <b
-                      className={
-                        result.reference_exact_match
-                          ? "yes"
-                          : "no"
-                      }
-                    >
-                      {result.reference_exact_match
-                        ? "YES"
-                        : "NO"}
-                    </b>
-                  </div>
+    <b>
+      {result.reference_similarity != null
+        ? (result.reference_exact_match ? "YES" : "NO")
+        : "Not provided"}
+    </b>
+  </div>
 
-                  {result.contradiction && (
-                    <div className="probabilities">
-                      <div>
-                        <span>Entailment</span>
-                        <strong>
-                          {(
-                            (result.contradiction.entailment ||
-                              0) * 100
-                          ).toFixed(1)}
-                          %
-                        </strong>
-                      </div>
+  <div className="probabilities">
 
-                      <div>
-                        <span>Neutral</span>
-                        <strong>
-                          {(
-                            (result.contradiction.neutral ||
-                              0) * 100
-                          ).toFixed(1)}
-                          %
-                        </strong>
-                      </div>
+    <div>
+      <span>Supported</span>
+      <strong>
+        {result.best_evidence_similarity != null
+          ? `${(result.best_evidence_similarity * 100).toFixed(1)}%`
+          : "—"}
+      </strong>
+    </div>
 
-                      <div>
-                        <span>Contradiction</span>
-                        <strong>
-                          {(
-                            (result.contradiction
-                              .contradiction || 0) * 100
-                          ).toFixed(1)}
-                          %
-                        </strong>
-                      </div>
-                    </div>
-                  )}
-                </div>
+    <div>
+      <span>Neutral</span>
+      <strong>
+        {result.best_evidence_similarity != null
+          ? `${((1 - result.best_evidence_similarity) * 100).toFixed(1)}%`
+          : "—"}
+      </strong>
+    </div>
 
+    <div>
+      <span>Contradiction</span>
+      <strong>
+        {result.direct_fact_contradiction
+          ? "100.0%"
+          : "0.0%"}
+      </strong>
+    </div>
+
+  </div>
+
+</div>
                 {/* EVIDENCE */}
                 {result.evidence_scores &&
                   result.evidence_scores.length > 0 && (
