@@ -369,7 +369,7 @@ export default function Dashboard() {
 
           <div>
             <div className="dashboard-eyebrow">
-              M4.1 EVALUATION SCORING DASHBOARD
+               EVALUATION SCORING DASHBOARD
             </div>
 
             <h1>Evaluation Dashboard</h1>
@@ -1108,9 +1108,13 @@ export default function Dashboard() {
                           </td>
 
                           <td className="question-cell">
-                            {String(
-                              record.question || "—"
-                            ).slice(0, 90)}
+                            <button
+                          className="question-link"
+                          onClick={() => view(record.id || record.submission_id)}
+                          title="View evaluation details"
+                            >
+                          {String(record.question || "-").slice(0, 90)}
+                             </button>
                           </td>
 
                           <td>
