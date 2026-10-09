@@ -3,3 +3,4 @@ uvicorn
 pydantic
 reportlab
 faiss-cpu
+sentence-transformers
