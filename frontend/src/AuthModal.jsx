@@ -2,11 +2,15 @@ import { useState } from "react";
 import { API_ENDPOINTS } from "./apiConfig";
 
 export default function AuthModal({ isOpen, onClose, onLoginSuccess }) {
-  const [activeTab, setActiveTab] = useState("google"); // "google" | "phone" | "guest"
+  const [activeTab, setActiveTab] = useState("email"); // "email" | "phone" | "guest"
   
-  // Google / Email State
-  const [googleEmail, setGoogleEmail] = useState("");
-  const [googleName, setGoogleName] = useState("");
+  // Email State
+  const [email, setEmail] = useState("");
+  const [emailName, setEmailName] = useState("");
+  const [emailOtpSent, setEmailOtpSent] = useState(false);
+  const [emailOtpCode, setEmailOtpCode] = useState("");
+  const [emailHintOtp, setEmailHintOtp] = useState("");
+  const [emailSentReal, setEmailSentReal] = useState(false);
 
   // Phone State
   const [phoneCountry, setPhoneCountry] = useState("+91");
@@ -15,6 +19,7 @@ export default function AuthModal({ isOpen, onClose, onLoginSuccess }) {
   const [otpSent, setOtpSent] = useState(false);
   const [otpCode, setOtpCode] = useState("");
   const [hintOtp, setHintOtp] = useState("");
+  const [phoneSentReal, setPhoneSentReal] = useState(false);
 
   // Loading & Error States
   const [loading, setLoading] = useState(false);
@@ -22,47 +27,83 @@ export default function AuthModal({ isOpen, onClose, onLoginSuccess }) {
 
   if (!isOpen) return null;
 
-  const handleGoogleSubmit = async (emailOverride, nameOverride) => {
+  // EMAIL OTP FLOW
+  const handleSendEmailOtp = async () => {
     setError("");
-    const emailToUse = (emailOverride || googleEmail).trim();
-    const nameToUse = (nameOverride || googleName).trim() || emailToUse.split("@")[0];
-
-    if (!emailToUse || !emailToUse.includes("@")) {
-      setError("Please enter a valid Gmail / Google email address.");
+    const cleanEmail = email.trim().toLowerCase();
+    if (!cleanEmail || !cleanEmail.includes("@")) {
+      setError("Please enter a valid email address.");
       return;
     }
 
     setLoading(true);
     try {
-      const res = await fetch(API_ENDPOINTS.AUTH_GOOGLE, {
+      const res = await fetch(API_ENDPOINTS.AUTH_EMAIL_OTP, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: cleanEmail }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.detail || "Failed to send verification code to email.");
+      }
+
+      setEmailOtpSent(true);
+      setEmailSentReal(Boolean(data.sent_real));
+      setEmailHintOtp(data.demo_otp || "");
+      if (data.demo_otp) {
+        setEmailOtpCode(data.demo_otp);
+      }
+    } catch (err) {
+      console.error(err);
+      setError(err.message || "Failed to send verification code.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleVerifyEmailOtp = async () => {
+    setError("");
+    const cleanEmail = email.trim().toLowerCase();
+    if (!emailOtpCode || emailOtpCode.trim().length < 4) {
+      setError("Please enter the 6-digit verification code sent to your email.");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const res = await fetch(API_ENDPOINTS.AUTH_EMAIL_VERIFY, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          email: emailToUse,
-          name: nameToUse,
-          avatar: `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(emailToUse)}`,
+          email: cleanEmail,
+          otp: emailOtpCode.trim(),
+          name: emailName.trim() || cleanEmail.split("@")[0].replace(".", " ").title(),
         }),
       });
 
       const data = await res.json();
       if (!res.ok) {
-        throw new Error(data.detail || "Google login failed.");
+        throw new Error(data.detail || "Invalid or expired verification code.");
       }
 
       onLoginSuccess(data.user);
       onClose();
     } catch (err) {
       console.error(err);
-      setError(err.message || "Unable to sign in with Google.");
+      setError(err.message || "Verification code is incorrect.");
     } finally {
       setLoading(false);
     }
   };
 
+  // PHONE OTP FLOW
   const handleSendPhoneOtp = async () => {
     setError("");
-    const fullPhone = `${phoneCountry}${phoneNumber.replace(/\D/g, "")}`;
-    if (phoneNumber.replace(/\D/g, "").length < 7) {
+    const cleanNumber = phoneNumber.replace(/\D/g, "");
+    const fullPhone = `${phoneCountry}${cleanNumber}`;
+    if (cleanNumber.length < 7) {
       setError("Please enter a valid mobile number.");
       return;
     }
@@ -81,11 +122,14 @@ export default function AuthModal({ isOpen, onClose, onLoginSuccess }) {
       }
 
       setOtpSent(true);
-      setHintOtp(data.demo_otp || "123456");
-      setOtpCode(data.demo_otp || "123456"); // Pre-fill convenience for user
+      setPhoneSentReal(Boolean(data.sent_real));
+      setHintOtp(data.demo_otp || "");
+      if (data.demo_otp) {
+        setOtpCode(data.demo_otp);
+      }
     } catch (err) {
       console.error(err);
-      setError(err.message || "Failed to send SMS code.");
+      setError(err.message || "Failed to send SMS verification code.");
     } finally {
       setLoading(false);
     }
@@ -93,9 +137,10 @@ export default function AuthModal({ isOpen, onClose, onLoginSuccess }) {
 
   const handleVerifyPhoneOtp = async () => {
     setError("");
-    const fullPhone = `${phoneCountry}${phoneNumber.replace(/\D/g, "")}`;
+    const cleanNumber = phoneNumber.replace(/\D/g, "");
+    const fullPhone = `${phoneCountry}${cleanNumber}`;
     if (!otpCode || otpCode.trim().length < 4) {
-      setError("Please enter the verification code.");
+      setError("Please enter the 6-digit verification code sent to your phone.");
       return;
     }
 
@@ -107,13 +152,13 @@ export default function AuthModal({ isOpen, onClose, onLoginSuccess }) {
         body: JSON.stringify({
           phone: fullPhone,
           otp: otpCode.trim(),
-          name: phoneName.trim() || `User ${phoneNumber.slice(-4)}`,
+          name: phoneName.trim() || `User ${cleanNumber.slice(-4)}`,
         }),
       });
 
       const data = await res.json();
       if (!res.ok) {
-        throw new Error(data.detail || "Verification failed.");
+        throw new Error(data.detail || "Invalid verification code.");
       }
 
       onLoginSuccess(data.user);
@@ -126,6 +171,7 @@ export default function AuthModal({ isOpen, onClose, onLoginSuccess }) {
     }
   };
 
+  // INSTANT DEMO FLOW
   const handleGuestLogin = async () => {
     setError("");
     setLoading(true);
@@ -145,7 +191,7 @@ export default function AuthModal({ isOpen, onClose, onLoginSuccess }) {
       onClose();
     } catch (err) {
       console.error(err);
-      setError(err.message || "Unable to start guest session.");
+      setError(err.message || "Unable to start demo session.");
     } finally {
       setLoading(false);
     }
@@ -165,22 +211,17 @@ export default function AuthModal({ isOpen, onClose, onLoginSuccess }) {
             <span className="auth-brand-bolt">🛡️</span>
           </div>
           <h2>Access ResponseGuard</h2>
-          <p>Sign in with Google, Phone Number, or Demo Account for unlimited AI response validation</p>
+          <p>We send a secure verification code to your email or mobile phone</p>
         </div>
 
         {/* TABS */}
         <div className="auth-modal-tabs">
           <button
-            className={`auth-tab-btn ${activeTab === "google" ? "active" : ""}`}
-            onClick={() => { setActiveTab("google"); setError(""); }}
+            className={`auth-tab-btn ${activeTab === "email" ? "active" : ""}`}
+            onClick={() => { setActiveTab("email"); setError(""); }}
           >
-            <svg className="auth-tab-icon" viewBox="0 0 24 24" width="16" height="16">
-              <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
-              <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
-              <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
-              <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
-            </svg>
-            Gmail / Google
+            <span className="auth-tab-icon">✉️</span>
+            Email Verification
           </button>
 
           <button
@@ -188,7 +229,7 @@ export default function AuthModal({ isOpen, onClose, onLoginSuccess }) {
             onClick={() => { setActiveTab("phone"); setError(""); }}
           >
             <span className="auth-tab-icon">📱</span>
-            Phone Number
+            Phone SMS
           </button>
 
           <button
@@ -203,60 +244,96 @@ export default function AuthModal({ isOpen, onClose, onLoginSuccess }) {
         {/* ERROR NOTIFICATION */}
         {error && <div className="auth-error-banner">⚠️ {error}</div>}
 
-        {/* TAB 1: GOOGLE / GMAIL */}
-        {activeTab === "google" && (
+        {/* TAB 1: EMAIL VERIFICATION */}
+        {activeTab === "email" && (
           <div className="auth-tab-content">
-            <button
-              className="google-one-click-btn"
-              onClick={() => handleGoogleSubmit("demo.user@gmail.com", "Demo User")}
-              disabled={loading}
-            >
-              <svg viewBox="0 0 24 24" width="20" height="20">
-                <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
-                <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
-                <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
-                <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
-              </svg>
-              <span>{loading ? "Authenticating..." : "1-Click Sign In with Google"}</span>
-            </button>
+            {!emailOtpSent ? (
+              <>
+                <div className="auth-input-group">
+                  <label>Email Address</label>
+                  <input
+                    type="email"
+                    placeholder="e.g. name@gmail.com"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && handleSendEmailOtp()}
+                    autoFocus
+                  />
+                </div>
 
-            <div className="auth-divider">
-              <span>or sign in with custom Gmail</span>
-            </div>
+                <div className="auth-input-group">
+                  <label>Your Name (Optional)</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Alex Morgan"
+                    value={emailName}
+                    onChange={(e) => setEmailName(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && handleSendEmailOtp()}
+                  />
+                </div>
 
-            <div className="auth-input-group">
-              <label>Gmail / Google Email</label>
-              <input
-                type="email"
-                placeholder="e.g. alex@gmail.com"
-                value={googleEmail}
-                onChange={(e) => setGoogleEmail(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && handleGoogleSubmit()}
-              />
-            </div>
+                <button
+                  className="auth-primary-btn"
+                  onClick={handleSendEmailOtp}
+                  disabled={loading || !email.trim() || !email.includes("@")}
+                >
+                  {loading ? "Sending Code..." : "Send Verification Code to Email ➔"}
+                </button>
+              </>
+            ) : (
+              <>
+                <div className="otp-info-banner">
+                  <span className="otp-info-icon">✉️</span>
+                  <div>
+                    <div className="otp-info-title">Code sent to {email}</div>
+                    <div className="otp-info-sub">
+                      {emailSentReal
+                        ? "Check your inbox (and spam folder) for the 6-digit code."
+                        : "Enter the 6-digit code to complete verification."}
+                    </div>
+                  </div>
+                </div>
 
-            <div className="auth-input-group">
-              <label>Your Name</label>
-              <input
-                type="text"
-                placeholder="e.g. Alex Morgan"
-                value={googleName}
-                onChange={(e) => setGoogleName(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && handleGoogleSubmit()}
-              />
-            </div>
+                {emailHintOtp && (
+                  <div className="otp-demo-hint">
+                    ✨ <strong>Verification Code:</strong> <code>{emailHintOtp}</code> (or <code>123456</code>)
+                  </div>
+                )}
 
-            <button
-              className="auth-primary-btn"
-              onClick={() => handleGoogleSubmit()}
-              disabled={loading || !googleEmail.trim()}
-            >
-              {loading ? "Signing in..." : "Continue with Gmail ➔"}
-            </button>
+                <div className="auth-input-group">
+                  <label>6-Digit Verification Code</label>
+                  <input
+                    type="text"
+                    maxLength={6}
+                    placeholder="123456"
+                    className="otp-code-input"
+                    value={emailOtpCode}
+                    onChange={(e) => setEmailOtpCode(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && handleVerifyEmailOtp()}
+                    autoFocus
+                  />
+                </div>
+
+                <button
+                  className="auth-primary-btn"
+                  onClick={handleVerifyEmailOtp}
+                  disabled={loading || !emailOtpCode.trim()}
+                >
+                  {loading ? "Verifying..." : "Verify Code & Sign In ➔"}
+                </button>
+
+                <button
+                  className="auth-text-link"
+                  onClick={() => { setEmailOtpSent(false); setError(""); }}
+                >
+                  ← Change email address
+                </button>
+              </>
+            )}
           </div>
         )}
 
-        {/* TAB 2: PHONE NUMBER + OTP */}
+        {/* TAB 2: PHONE NUMBER + SMS OTP */}
         {activeTab === "phone" && (
           <div className="auth-tab-content">
             {!otpSent ? (
@@ -283,12 +360,13 @@ export default function AuthModal({ isOpen, onClose, onLoginSuccess }) {
                       onChange={(e) => setPhoneNumber(e.target.value)}
                       className="phone-number-field"
                       onKeyDown={(e) => e.key === "Enter" && handleSendPhoneOtp()}
+                      autoFocus
                     />
                   </div>
                 </div>
 
                 <div className="auth-input-group">
-                  <label>Your Name</label>
+                  <label>Your Name (Optional)</label>
                   <input
                     type="text"
                     placeholder="e.g. Alex Morgan"
@@ -303,22 +381,26 @@ export default function AuthModal({ isOpen, onClose, onLoginSuccess }) {
                   onClick={handleSendPhoneOtp}
                   disabled={loading || phoneNumber.replace(/\D/g, "").length < 7}
                 >
-                  {loading ? "Sending Code..." : "Send Verification OTP ➔"}
+                  {loading ? "Sending SMS..." : "Send Verification Code to Mobile ➔"}
                 </button>
               </>
             ) : (
               <>
                 <div className="otp-info-banner">
-                  <span className="otp-info-icon">📩</span>
+                  <span className="otp-info-icon">📱</span>
                   <div>
                     <div className="otp-info-title">Code sent to {phoneCountry} {phoneNumber}</div>
-                    <div className="otp-info-sub">Enter the 6-digit code below to confirm login.</div>
+                    <div className="otp-info-sub">
+                      {phoneSentReal
+                        ? "SMS sent to your phone. Enter the code below."
+                        : "Enter the 6-digit code to complete verification."}
+                    </div>
                   </div>
                 </div>
 
                 {hintOtp && (
                   <div className="otp-demo-hint">
-                    ✨ <strong>Instant Code:</strong> <code>{hintOtp}</code> (or <code>123456</code>)
+                    ✨ <strong>Verification Code:</strong> <code>{hintOtp}</code> (or <code>123456</code>)
                   </div>
                 )}
 
@@ -341,7 +423,7 @@ export default function AuthModal({ isOpen, onClose, onLoginSuccess }) {
                   onClick={handleVerifyPhoneOtp}
                   disabled={loading || !otpCode.trim()}
                 >
-                  {loading ? "Verifying..." : "Verify & Continue ➔"}
+                  {loading ? "Verifying..." : "Verify Code & Sign In ➔"}
                 </button>
 
                 <button
@@ -362,7 +444,7 @@ export default function AuthModal({ isOpen, onClose, onLoginSuccess }) {
               <div className="guest-hero-icon">🚀</div>
               <h3>Instant Demo Access</h3>
               <p>
-                Explore full automated hallucination detection, RAG evidence checking, and PDF exports immediately.
+                Explore full automated hallucination detection, RAG evidence checking, and PDF exports immediately without verification.
               </p>
             </div>
 
@@ -382,7 +464,7 @@ export default function AuthModal({ isOpen, onClose, onLoginSuccess }) {
             <span>⚡</span> Unlimited Validations
           </div>
           <div className="auth-perk">
-            <span>🔒</span> 100% Free & Open
+            <span>🔒</span> Real OTP Verification
           </div>
           <div className="auth-perk">
             <span>🛡️</span> Instant AI Guard

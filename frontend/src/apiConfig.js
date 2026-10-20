@@ -8,6 +8,8 @@ export const API_ENDPOINTS = {
   DASHBOARD: `${API_BASE}/api/dashboard`,
   REPORT: `${API_BASE}/api/report`,
   AUTH_GOOGLE: `${API_BASE}/api/auth/google`,
+  AUTH_EMAIL_OTP: `${API_BASE}/api/auth/email/send-otp`,
+  AUTH_EMAIL_VERIFY: `${API_BASE}/api/auth/email/verify`,
   AUTH_PHONE_OTP: `${API_BASE}/api/auth/phone/send-otp`,
   AUTH_PHONE_VERIFY: `${API_BASE}/api/auth/phone/verify`,
   AUTH_GUEST: `${API_BASE}/api/auth/guest`,

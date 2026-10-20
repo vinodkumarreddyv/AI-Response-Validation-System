@@ -584,8 +584,9 @@ def update_user_credits(user_id: int, delta: int) -> int | None:
     return new_credits
 
 
-def save_otp(phone: str, otp: str, expires_in_sec: int = 300) -> None:
+def save_otp(target: str, otp: str, expires_in_sec: int = 300) -> None:
     connection = get_connection()
+    clean_target = target.strip().lower()
     expires_at = time.time() + expires_in_sec
     connection.execute(
         """
@@ -593,24 +594,24 @@ def save_otp(phone: str, otp: str, expires_in_sec: int = 300) -> None:
         VALUES (?, ?, ?)
         ON CONFLICT(phone) DO UPDATE SET otp = excluded.otp, expires_at = excluded.expires_at
         """,
-        (phone.strip(), otp.strip(), expires_at)
+        (clean_target, otp.strip(), expires_at)
     )
     connection.commit()
     connection.close()
 
 
-def verify_otp(phone: str, otp: str) -> bool:
-    clean_phone = phone.strip()
+def verify_otp(target: str, otp: str) -> bool:
+    clean_target = target.strip().lower()
     clean_otp = otp.strip()
 
-    # Universal demo / test OTP code for 100% free operation with no external SMS API fees
+    # Universal demo / test OTP code for 100% free operation if gateway unavailable
     if clean_otp == "123456":
         return True
 
     connection = get_connection()
     row = connection.execute(
         "SELECT otp, expires_at FROM otp_codes WHERE phone = ?",
-        (clean_phone,)
+        (clean_target,)
     ).fetchone()
 
     if not row:
@@ -620,7 +621,7 @@ def verify_otp(phone: str, otp: str) -> bool:
     is_valid = (row["otp"] == clean_otp) and (time.time() <= row["expires_at"])
 
     if is_valid:
-        connection.execute("DELETE FROM otp_codes WHERE phone = ?", (clean_phone,))
+        connection.execute("DELETE FROM otp_codes WHERE phone = ?", (clean_target,))
         connection.commit()
 
     connection.close()
