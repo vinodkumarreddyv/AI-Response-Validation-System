@@ -37,31 +37,45 @@ CHUNKS_PATH = os.path.join(
 
 
 # ============================================================
-# LOAD FAISS INDEX
+# LOAD FAISS INDEX & CHUNKS
 # ============================================================
 
-index = faiss.read_index(INDEX_PATH)
+index = None
+chunks = []
 
+def load_vector_store():
+    global index, chunks
+    if os.path.exists(INDEX_PATH):
+        try:
+            index = faiss.read_index(INDEX_PATH)
+            print(f"Loaded FAISS index with {index.ntotal} vectors from {INDEX_PATH}")
+        except Exception as e:
+            print(f"Warning: Failed to load FAISS index: {e}")
+            index = None
+    else:
+        print(f"Notice: FAISS index file not found at {INDEX_PATH}")
 
-# ============================================================
-# LOAD CHUNKS
-# ============================================================
+    if os.path.exists(CHUNKS_PATH):
+        try:
+            with open(CHUNKS_PATH, "r", encoding="utf-8") as f:
+                chunks = json.load(f)
+            print(f"Loaded {len(chunks)} chunks from {CHUNKS_PATH}")
+        except Exception as e:
+            print(f"Warning: Failed to load chunks: {e}")
+            chunks = []
+    else:
+        print(f"Notice: chunks.json file not found at {CHUNKS_PATH}")
 
-with open(
-    CHUNKS_PATH,
-    "r",
-    encoding="utf-8"
-) as f:
-    chunks = json.load(f)
+load_vector_store()
 
 
 # ============================================================
 # EMBEDDING MODEL
 # ============================================================
 
-model = SentenceTransformer(
-    "all-MiniLM-L6-v2"
-)
+from backend.app.services.embedding_model import get_shared_embedding_model
+
+model = get_shared_embedding_model("all-MiniLM-L6-v2")
 
 
 # ============================================================
@@ -276,6 +290,11 @@ def faiss_retrieve(
     query: str,
     search_k: int
 ):
+    if index is None or not chunks:
+        # Try loading if files became available
+        load_vector_store()
+        if index is None or not chunks:
+            return []
 
     query_embedding = model.encode(
         [query],

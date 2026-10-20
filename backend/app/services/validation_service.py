@@ -1,13 +1,13 @@
 import re
 import numpy as np
-from sentence_transformers import SentenceTransformer
+from backend.app.services.embedding_model import get_shared_embedding_model
 
 
 # ============================================================
 # MODEL
 # ============================================================
 
-model = SentenceTransformer("all-MiniLM-L6-v2")
+model = get_shared_embedding_model("all-MiniLM-L6-v2")
 
 
 # ============================================================

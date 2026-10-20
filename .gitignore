@@ -38,6 +38,7 @@ data/embeddings/
 data/vector_store/
 
 # Local database
-data/evaluation.dbdata/m4_e2e_*.csv
+data/evaluation.db
+data/m4_e2e_*.csv
 data/m4_invalid_record_test.csv
 data/m4_large_batch_test.csv

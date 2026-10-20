@@ -1,0 +1,16 @@
+version: "3.8"
+
+services:
+  ai-validation-system:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: ai-validation-app
+    ports:
+      - "7860:7860"
+    environment:
+      - PORT=7860
+      - CORS_ORIGINS=*
+    volumes:
+      - ./data:/app/data
+    restart: unless-stopped

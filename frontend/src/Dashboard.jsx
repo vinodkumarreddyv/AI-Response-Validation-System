@@ -14,9 +14,10 @@ import {
   Line,
   Legend,
 } from "recharts";
+import { API_ENDPOINTS } from "./apiConfig";
 
-const API = "http://127.0.0.1:8000/api/dashboard";
-const REPORT_API = "http://127.0.0.1:8000/api/report";
+const API = API_ENDPOINTS.DASHBOARD;
+const REPORT_API = API_ENDPOINTS.REPORT;
 
 const COLORS = ["#22c55e", "#f59e0b", "#ef4444"];
 
@@ -174,13 +175,13 @@ export default function Dashboard() {
             <div className="endpoint-box">
               <strong>Backend endpoint:</strong>
               <br />
-              http://127.0.0.1:8000/api/dashboard/summary
+              {`${API}/summary`}
               <br />
               <br />
 
               <strong>Batch endpoint:</strong>
               <br />
-              http://127.0.0.1:8000/api/dashboard/batches
+              {`${API}/batches`}
             </div>
 
             <button className="primary-button" onClick={load}>

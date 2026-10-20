@@ -1,5 +1,7 @@
-﻿import os
+import os
 import sys
+import re
+import requests
 import gdown
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -19,24 +21,57 @@ MINIMUM_SIZES = {
 
 os.makedirs(VECTOR_DIR, exist_ok=True)
 
+
+def download_file(file_id: str, destination: str):
+    """Downloads large file from Google Drive, handling virus scan confirmation."""
+    session = requests.Session()
+    url = "https://drive.google.com/uc?export=download"
+
+    response = session.get(url, params={"id": file_id}, stream=True)
+
+    # Check for direct file download
+    content_type = response.headers.get("Content-Type", "")
+    if "text/html" not in content_type:
+        _stream_save(response, destination)
+        return True
+
+    # Parse confirmation form / token
+    inputs = dict(re.findall(r'name="([^"]+)"\s+value="([^"]+)"', response.text))
+    form_match = re.search(r'action="([^"]+)"', response.text)
+
+    if form_match and inputs:
+        action_url = form_match.group(1)
+        response = session.get(action_url, params=inputs, stream=True)
+        if "text/html" not in response.headers.get("Content-Type", ""):
+            _stream_save(response, destination)
+            return True
+
+    # Fallback to gdown
+    print("Falling back to gdown...")
+    result = gdown.download(id=file_id, output=destination, quiet=False)
+    return bool(result and os.path.exists(destination))
+
+
+def _stream_save(response, destination):
+    with open(destination, "wb") as f:
+        for chunk in response.iter_content(chunk_size=1024 * 1024):
+            if chunk:
+                f.write(chunk)
+
+
 for filename, file_id in FILES.items():
     destination = os.path.join(VECTOR_DIR, filename)
 
     if os.path.exists(destination):
         if os.path.getsize(destination) >= MINIMUM_SIZES[filename]:
-            print(f"{filename} already exists; skipping.")
+            print(f"{filename} already exists ({os.path.getsize(destination)} bytes); skipping.")
             continue
         os.remove(destination)
 
     print(f"Downloading {filename}...")
+    success = download_file(file_id, destination)
 
-    result = gdown.download(
-        id=file_id,
-        output=destination,
-        quiet=False
-    )
-
-    if not result or not os.path.exists(destination):
+    if not success or not os.path.exists(destination):
         print(f"ERROR: Download failed for {filename}.")
         sys.exit(1)
 

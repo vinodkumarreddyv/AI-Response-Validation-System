@@ -1,12 +1,17 @@
+import os
 import json
 import sqlite3
 from pathlib import Path
 
 
 DATABASE_PATH = (
-    Path(__file__).resolve().parents[2]
-    / "data"
-    / "evaluation.db"
+    Path(os.environ["DATABASE_PATH"])
+    if os.environ.get("DATABASE_PATH")
+    else (
+        Path(__file__).resolve().parents[2]
+        / "data"
+        / "evaluation.db"
+    )
 )
 
 

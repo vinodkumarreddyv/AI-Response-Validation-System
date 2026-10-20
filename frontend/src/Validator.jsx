@@ -1,7 +1,8 @@
 import { useState } from "react";
 import "./App.css";
+import { API_ENDPOINTS } from "./apiConfig";
 
-const API_URL = "http://127.0.0.1:8000/api/evaluation/submit";
+const API_URL = API_ENDPOINTS.EVALUATION_SUBMIT;
 
 function App() {
   const [question, setQuestion] = useState("");
@@ -27,7 +28,7 @@ function App() {
       formData.append("file", file);
 
       const response = await fetch(
-        "http://127.0.0.1:8000/api/evaluation/upload-reference",
+        API_ENDPOINTS.EVALUATION_UPLOAD,
         {
           method: "POST",
           body: formData,

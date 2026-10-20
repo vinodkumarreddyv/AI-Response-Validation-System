@@ -1,13 +1,13 @@
 from typing import Dict
 import re
 import numpy as np
-from sentence_transformers import SentenceTransformer
+from backend.app.services.embedding_model import get_shared_embedding_model
 
 
 # Use the same embedding model used by the knowledge base
 MODEL_NAME = "all-MiniLM-L6-v2"
 
-_model = SentenceTransformer(MODEL_NAME)
+_model = get_shared_embedding_model(MODEL_NAME)
 
 
 STOP_WORDS = {
