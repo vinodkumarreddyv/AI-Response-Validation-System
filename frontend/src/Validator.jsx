@@ -4,7 +4,7 @@ import { API_ENDPOINTS } from "./apiConfig";
 
 const API_URL = API_ENDPOINTS.EVALUATION_SUBMIT;
 
-function App() {
+function Validator({ user, openAuthModal, handleRefillCredits, deductCreditLocally }) {
   const [question, setQuestion] = useState("");
   const [aiResponse, setAiResponse] = useState("");
   const [referenceAnswer, setReferenceAnswer] = useState("");
@@ -71,6 +71,11 @@ function App() {
       return;
     }
 
+    if (user && user.credits <= 0) {
+      setError("You have 0 evaluation credits remaining. Please refill to continue testing!");
+      return;
+    }
+
     setLoading(true);
 
     try {
@@ -78,6 +83,7 @@ function App() {
         question: question.trim(),
         ai_response: aiResponse.trim(),
         reference_answer: referenceAnswer.trim() || null,
+        user_id: user?.id || null,
         evidence: evidence.trim()
           ? [
               {
@@ -108,6 +114,12 @@ function App() {
       }
 
       setResult(data.validation || data);
+
+      if (typeof data.credits === "number" && deductCreditLocally) {
+        deductCreditLocally(data.credits);
+      } else if (user && deductCreditLocally) {
+        deductCreditLocally();
+      }
     } catch (err) {
       console.error(err);
       setError(
@@ -326,38 +338,72 @@ function App() {
 
   </div>
 </div>
+            {/* SIGN IN REMINDER BANNER FOR GUESTS */}
+            {!user && (
+              <div className="validator-guest-banner" onClick={openAuthModal}>
+                <div className="guest-banner-left">
+                  <span className="guest-banner-bolt">⚡</span>
+                  <div>
+                    <strong>Sign In to Claim 50 Free Credits</strong>
+                    <span>Evaluate responses, track history, and sync across devices</span>
+                  </div>
+                </div>
+                <button type="button" className="guest-banner-action-btn">
+                  Sign In ➔
+                </button>
+              </div>
+            )}
+
+            {/* ERROR NOTIFICATION WITH QUICK REFILL BUTTON */}
             {error && (
               <div className="error-box">
                 <span>⚠</span>
-                <div>
-                  <strong>Validation Error</strong>
+                <div style={{ flex: 1 }}>
+                  <strong>Validation Notice</strong>
                   <p>{error}</p>
+                  {(error.includes("0 evaluation credits") || error.includes("credits")) && (
+                    <button
+                      type="button"
+                      className="error-refill-btn"
+                      onClick={handleRefillCredits}
+                    >
+                      ⚡ Refill +50 Free Credits Now
+                    </button>
+                  )}
                 </div>
               </div>
             )}
 
-            <button
-              className="validate-button"
-              onClick={validateResponse}
-              disabled={loading || !!result}
-            >
-              {loading ? (
-                <>
-                  <span className="spinner"></span>
-                  Analyzing response...
-                </>
-              ) : result ? (
-                <>
-                  Response Validated
-                  <span>✓</span>
-                </>
-              ) : (
-                <>
-                 Validate Response
-                 <span>→</span>
-                </>
-              )}
-            </button>
+            <div className="validate-action-wrapper">
+              <button
+                className="validate-button"
+                onClick={validateResponse}
+                disabled={loading || !!result}
+              >
+                {loading ? (
+                  <>
+                    <span className="spinner"></span>
+                    Analyzing response...
+                  </>
+                ) : result ? (
+                  <>
+                    Response Validated
+                    <span>✓</span>
+                  </>
+                ) : (
+                  <>
+                   Validate Response
+                   <span>→</span>
+                  </>
+                )}
+              </button>
+
+              <div className="validate-cost-pill">
+                <span className="cost-bolt">⚡</span>
+                <span>1 Credit / Evaluation</span>
+                {user && <span className="cost-balance">({user.credits} remaining)</span>}
+              </div>
+            </div>
           </div>
 
           {/* RESULT PANEL */}
@@ -662,4 +708,4 @@ function App() {
   );
 }
 
-export default App;
+export default Validator;

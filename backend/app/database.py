@@ -1,6 +1,7 @@
 import os
 import json
 import sqlite3
+import time
 from pathlib import Path
 
 
@@ -108,7 +109,8 @@ def initialize_database():
         ("missing_aspects_json", "TEXT"),
         ("supporting_evidence_json", "TEXT"),
         ("verdict_reasoning", "TEXT"),
-        ("batch_id", "TEXT")
+        ("batch_id", "TEXT"),
+        ("user_id", "INTEGER")
     ]
 
     for column_name, column_type in new_columns:
@@ -118,6 +120,32 @@ def initialize_database():
             column_name,
             column_type
         )
+
+    connection.execute(
+        """
+        CREATE TABLE IF NOT EXISTS users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            email TEXT UNIQUE,
+            phone TEXT UNIQUE,
+            name TEXT NOT NULL,
+            avatar TEXT,
+            provider TEXT NOT NULL,
+            credits INTEGER NOT NULL DEFAULT 50,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            last_login TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+        """
+    )
+
+    connection.execute(
+        """
+        CREATE TABLE IF NOT EXISTS otp_codes (
+            phone TEXT PRIMARY KEY,
+            otp TEXT NOT NULL,
+            expires_at REAL NOT NULL
+        )
+        """
+    )
 
     connection.commit()
     connection.close()
@@ -129,7 +157,8 @@ def save_evaluation(
     reference_answer: str | None,
     source_document: str | None,
     validation: dict,
-    batch_id: str | None = None
+    batch_id: str | None = None,
+    user_id: int | None = None
 ):
     connection = get_connection()
 
@@ -274,7 +303,8 @@ def save_evaluation(
             supporting_evidence_json,
 
             verdict_reasoning,
-            batch_id
+            batch_id,
+            user_id
         )
         VALUES (
             ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
@@ -282,7 +312,7 @@ def save_evaluation(
             ?, ?,
             ?, ?, ?, ?,
             ?, ?, ?,
-            ?, ?
+            ?, ?, ?
         )
         """,
         (
@@ -395,7 +425,9 @@ def save_evaluation(
 
             verdict_reasoning,
 
-            batch_id
+            batch_id,
+
+            user_id
         )
     )
 
@@ -406,3 +438,190 @@ def save_evaluation(
     connection.close()
 
     return submission_id
+
+
+def get_user_by_id(user_id: int) -> dict | None:
+    connection = get_connection()
+    user = connection.execute(
+        "SELECT id, email, phone, name, avatar, provider, credits, created_at, last_login FROM users WHERE id = ?",
+        (user_id,)
+    ).fetchone()
+    connection.close()
+    return dict(user) if user else None
+
+
+def get_or_create_user(
+    identifier: str,
+    provider: str,
+    name: str | None = None,
+    avatar: str | None = None,
+    default_credits: int = 50
+) -> dict:
+    connection = get_connection()
+    clean_id = identifier.strip().lower() if "@" in identifier else identifier.strip()
+
+    if provider == "google":
+        row = connection.execute(
+            "SELECT * FROM users WHERE email = ?",
+            (clean_id,)
+        ).fetchone()
+        if row:
+            display_name = name or row["name"]
+            avatar_url = avatar or row["avatar"]
+            connection.execute(
+                "UPDATE users SET last_login = CURRENT_TIMESTAMP, name = ?, avatar = ? WHERE id = ?",
+                (display_name, avatar_url, row["id"])
+            )
+            connection.commit()
+            updated = connection.execute(
+                "SELECT id, email, phone, name, avatar, provider, credits, created_at, last_login FROM users WHERE id = ?",
+                (row["id"],)
+            ).fetchone()
+            connection.close()
+            return dict(updated)
+        else:
+            display_name = name or clean_id.split("@")[0].replace(".", " ").title()
+            cursor = connection.execute(
+                """
+                INSERT INTO users (email, name, avatar, provider, credits)
+                VALUES (?, ?, ?, ?, ?)
+                """,
+                (clean_id, display_name, avatar or "", "google", default_credits)
+            )
+            connection.commit()
+            new_id = cursor.lastrowid
+            new_user = connection.execute(
+                "SELECT id, email, phone, name, avatar, provider, credits, created_at, last_login FROM users WHERE id = ?",
+                (new_id,)
+            ).fetchone()
+            connection.close()
+            return dict(new_user)
+
+    elif provider == "phone":
+        row = connection.execute(
+            "SELECT * FROM users WHERE phone = ?",
+            (clean_id,)
+        ).fetchone()
+        if row:
+            display_name = name or row["name"]
+            connection.execute(
+                "UPDATE users SET last_login = CURRENT_TIMESTAMP, name = ? WHERE id = ?",
+                (display_name, row["id"])
+            )
+            connection.commit()
+            updated = connection.execute(
+                "SELECT id, email, phone, name, avatar, provider, credits, created_at, last_login FROM users WHERE id = ?",
+                (row["id"],)
+            ).fetchone()
+            connection.close()
+            return dict(updated)
+        else:
+            display_name = name or f"User {clean_id[-4:]}"
+            cursor = connection.execute(
+                """
+                INSERT INTO users (phone, name, avatar, provider, credits)
+                VALUES (?, ?, ?, ?, ?)
+                """,
+                (clean_id, display_name, avatar or "", "phone", default_credits)
+            )
+            connection.commit()
+            new_id = cursor.lastrowid
+            new_user = connection.execute(
+                "SELECT id, email, phone, name, avatar, provider, credits, created_at, last_login FROM users WHERE id = ?",
+                (new_id,)
+            ).fetchone()
+            connection.close()
+            return dict(new_user)
+
+    else:  # 'guest' or demo
+        guest_email = f"{clean_id}@guest.local"
+        row = connection.execute(
+            "SELECT * FROM users WHERE email = ?",
+            (guest_email,)
+        ).fetchone()
+        if row:
+            connection.execute(
+                "UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE id = ?",
+                (row["id"],)
+            )
+            connection.commit()
+            updated = connection.execute(
+                "SELECT id, email, phone, name, avatar, provider, credits, created_at, last_login FROM users WHERE id = ?",
+                (row["id"],)
+            ).fetchone()
+            connection.close()
+            return dict(updated)
+        else:
+            display_name = name or "Demo Explorer"
+            cursor = connection.execute(
+                """
+                INSERT INTO users (email, name, avatar, provider, credits)
+                VALUES (?, ?, ?, ?, ?)
+                """,
+                (guest_email, display_name, avatar or "", "guest", default_credits)
+            )
+            connection.commit()
+            new_id = cursor.lastrowid
+            new_user = connection.execute(
+                "SELECT id, email, phone, name, avatar, provider, credits, created_at, last_login FROM users WHERE id = ?",
+                (new_id,)
+            ).fetchone()
+            connection.close()
+            return dict(new_user)
+
+
+def update_user_credits(user_id: int, delta: int) -> int | None:
+    connection = get_connection()
+    row = connection.execute("SELECT credits FROM users WHERE id = ?", (user_id,)).fetchone()
+    if not row:
+        connection.close()
+        return None
+
+    new_credits = max(0, row["credits"] + delta)
+    connection.execute("UPDATE users SET credits = ? WHERE id = ?", (new_credits, user_id))
+    connection.commit()
+    connection.close()
+    return new_credits
+
+
+def save_otp(phone: str, otp: str, expires_in_sec: int = 300) -> None:
+    connection = get_connection()
+    expires_at = time.time() + expires_in_sec
+    connection.execute(
+        """
+        INSERT INTO otp_codes (phone, otp, expires_at)
+        VALUES (?, ?, ?)
+        ON CONFLICT(phone) DO UPDATE SET otp = excluded.otp, expires_at = excluded.expires_at
+        """,
+        (phone.strip(), otp.strip(), expires_at)
+    )
+    connection.commit()
+    connection.close()
+
+
+def verify_otp(phone: str, otp: str) -> bool:
+    clean_phone = phone.strip()
+    clean_otp = otp.strip()
+
+    # Universal demo / test OTP code for 100% free operation with no external SMS API fees
+    if clean_otp == "123456":
+        return True
+
+    connection = get_connection()
+    row = connection.execute(
+        "SELECT otp, expires_at FROM otp_codes WHERE phone = ?",
+        (clean_phone,)
+    ).fetchone()
+
+    if not row:
+        connection.close()
+        return False
+
+    is_valid = (row["otp"] == clean_otp) and (time.time() <= row["expires_at"])
+
+    if is_valid:
+        connection.execute("DELETE FROM otp_codes WHERE phone = ?", (clean_phone,))
+        connection.commit()
+
+    connection.close()
+    return is_valid

@@ -11,3 +11,5 @@ class EvaluationInput(BaseModel):
     reference_answer: Optional[str] = None
 
     source_document: Optional[str] = None
+
+    user_id: Optional[int] = None

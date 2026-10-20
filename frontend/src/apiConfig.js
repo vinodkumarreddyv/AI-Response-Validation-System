@@ -7,6 +7,13 @@ export const API_ENDPOINTS = {
   EVALUATION_UPLOAD: `${API_BASE}/api/evaluation/upload-reference`,
   DASHBOARD: `${API_BASE}/api/dashboard`,
   REPORT: `${API_BASE}/api/report`,
+  AUTH_GOOGLE: `${API_BASE}/api/auth/google`,
+  AUTH_PHONE_OTP: `${API_BASE}/api/auth/phone/send-otp`,
+  AUTH_PHONE_VERIFY: `${API_BASE}/api/auth/phone/verify`,
+  AUTH_GUEST: `${API_BASE}/api/auth/guest`,
+  AUTH_ME: `${API_BASE}/api/auth/me`,
+  AUTH_CREDITS_USE: `${API_BASE}/api/auth/credits/use`,
+  AUTH_CREDITS_REFILL: `${API_BASE}/api/auth/credits/refill`,
 };
 
 export default API_ENDPOINTS;

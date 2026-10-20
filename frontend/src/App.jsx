@@ -1,17 +1,115 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Validator from "./Validator";
 import Dashboard from "./Dashboard";
+import AuthModal from "./AuthModal";
+import { API_ENDPOINTS } from "./apiConfig";
 import "./App.css";
 
 function App() {
   const [page, setPage] = useState("validator");
+  const [user, setUser] = useState(() => {
+    try {
+      const saved = localStorage.getItem("responseguard_user");
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      return null;
+    }
+  });
+
+  const [authModalOpen, setAuthModalOpen] = useState(false);
+  const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const [refillLoading, setRefillLoading] = useState(false);
+  const [toastMessage, setToastMessage] = useState("");
+
+  // Sync user state with localStorage
+  useEffect(() => {
+    if (user) {
+      localStorage.setItem("responseguard_user", JSON.stringify(user));
+    } else {
+      localStorage.removeItem("responseguard_user");
+    }
+  }, [user]);
+
+  // Sync latest credits from backend when user is loaded
+  useEffect(() => {
+    if (!user?.id) return;
+    fetch(`${API_ENDPOINTS.AUTH_ME}?user_id=${user.id}`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (data?.user) {
+          setUser(data.user);
+        }
+      })
+      .catch((err) => console.warn("Failed to fetch fresh user credits:", err));
+  }, [user?.id]);
+
+  const showToast = (msg) => {
+    setToastMessage(msg);
+    setTimeout(() => setToastMessage(""), 4000);
+  };
+
+  const handleLoginSuccess = (userData) => {
+    setUser(userData);
+    showToast(`Welcome ${userData.name || "back"}! You have ${userData.credits} credits.`);
+  };
+
+  const handleLogout = () => {
+    setUser(null);
+    setUserMenuOpen(false);
+    showToast("Signed out successfully.");
+  };
+
+  const handleRefillCredits = async () => {
+    if (!user?.id) {
+      setAuthModalOpen(true);
+      return;
+    }
+
+    setRefillLoading(true);
+    try {
+      const res = await fetch(API_ENDPOINTS.AUTH_CREDITS_REFILL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ user_id: user.id, amount: 50 }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.detail || "Unable to refill credits.");
+      }
+
+      setUser((prev) => ({ ...prev, credits: data.credits }));
+      showToast("⚡ +50 Free Evaluation Credits Added!");
+    } catch (err) {
+      console.error(err);
+      showToast(`⚠️ ${err.message || "Refill failed."}`);
+    } finally {
+      setRefillLoading(false);
+      setUserMenuOpen(false);
+    }
+  };
+
+  const deductCreditLocally = (newCredits) => {
+    if (typeof newCredits === "number") {
+      setUser((prev) => (prev ? { ...prev, credits: newCredits } : prev));
+    } else {
+      setUser((prev) => (prev ? { ...prev, credits: Math.max(0, prev.credits - 1) } : prev));
+    }
+  };
 
   return (
     <div>
+      {/* GLOBAL TOAST NOTIFICATION */}
+      {toastMessage && (
+        <div className="app-global-toast">
+          {toastMessage}
+        </div>
+      )}
+
+      {/* NAVIGATION */}
       <nav className="app-navigation">
         <div className="nav-brand">
           <div className="nav-brand-icon">AI</div>
-
           <div>
             <strong>ResponseGuard</strong>
             <span>AI Response Validation System</span>
@@ -34,14 +132,125 @@ function App() {
           </button>
         </div>
 
-        <div className="nav-status">
-          <span></span>
-          System Online
+        {/* RIGHT SIDE: AUTH & CREDITS */}
+        <div className="nav-actions">
+          {user ? (
+            <div className="nav-user-container">
+              {/* CREDITS BADGE */}
+              <div
+                className={`nav-credits-pill ${user.credits <= 5 ? "low" : ""}`}
+                title="Evaluation Credits Remaining"
+                onClick={() => setUserMenuOpen((prev) => !prev)}
+              >
+                <span className="credits-bolt">⚡</span>
+                <span className="credits-count">{user.credits}</span>
+                <span className="credits-label">Credits</span>
+                <button
+                  className="credits-refill-quick-btn"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleRefillCredits();
+                  }}
+                  title="Free Refill (+50 Credits)"
+                  disabled={refillLoading}
+                >
+                  {refillLoading ? "..." : "+"}
+                </button>
+              </div>
+
+              {/* USER PROFILE BUTTON */}
+              <div className="nav-user-profile-wrapper">
+                <button
+                  className="nav-user-profile-btn"
+                  onClick={() => setUserMenuOpen((prev) => !prev)}
+                >
+                  {user.avatar ? (
+                    <img src={user.avatar} alt="Avatar" className="user-avatar-img" />
+                  ) : (
+                    <div className="user-avatar-placeholder">
+                      {user.provider === "google"
+                        ? "G"
+                        : user.provider === "phone"
+                        ? "📱"
+                        : "👤"}
+                    </div>
+                  )}
+                  <span className="nav-user-name">{user.name?.split(" ")[0] || "User"}</span>
+                  <span className="nav-caret">▾</span>
+                </button>
+
+                {/* USER DROPDOWN MENU */}
+                {userMenuOpen && (
+                  <div className="nav-user-dropdown" onClick={(e) => e.stopPropagation()}>
+                    <div className="user-dropdown-header">
+                      <div className="user-dropdown-name">{user.name}</div>
+                      <div className="user-dropdown-sub">
+                        {user.email || user.phone || "Demo User"}
+                      </div>
+                      <div className="user-dropdown-badge">
+                        via {user.provider === "google" ? "Google / Gmail" : user.provider === "phone" ? "Mobile Phone" : "Guest Demo"}
+                      </div>
+                    </div>
+
+                    <div className="user-dropdown-divider" />
+
+                    <div className="user-dropdown-credit-box">
+                      <div className="credit-box-title">Balance</div>
+                      <div className="credit-box-number">
+                        <span>⚡</span> {user.credits} Credits
+                      </div>
+                      <button
+                        className="credit-refill-action-btn"
+                        onClick={handleRefillCredits}
+                        disabled={refillLoading}
+                      >
+                        {refillLoading ? "Refilling..." : "⚡ Refill +50 Free Credits"}
+                      </button>
+                    </div>
+
+                    <div className="user-dropdown-divider" />
+
+                    <button className="user-dropdown-logout-btn" onClick={handleLogout}>
+                      Sign Out
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+          ) : (
+            <div className="nav-guest-actions">
+              <button
+                className="nav-signin-btn"
+                onClick={() => setAuthModalOpen(true)}
+              >
+                <span className="signin-bolt">⚡</span>
+                <span>Sign In / 50 Credits</span>
+              </button>
+            </div>
+          )}
+
+          <div className="nav-status">
+            <span></span>
+            System Online
+          </div>
         </div>
       </nav>
 
+      {/* AUTH MODAL */}
+      <AuthModal
+        isOpen={authModalOpen}
+        onClose={() => setAuthModalOpen(false)}
+        onLoginSuccess={handleLoginSuccess}
+      />
+
+      {/* MAIN CONTENT */}
       {page === "validator" ? (
-        <Validator />
+        <Validator
+          user={user}
+          openAuthModal={() => setAuthModalOpen(true)}
+          handleRefillCredits={handleRefillCredits}
+          deductCreditLocally={deductCreditLocally}
+        />
       ) : (
         <main className="dashboard-page">
           <Dashboard />

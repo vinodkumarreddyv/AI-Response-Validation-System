@@ -9,6 +9,7 @@ from backend.app.api.evaluation import router as evaluation_router
 from backend.app.api.batch_evaluation import router as batch_evaluation_router
 from backend.app.api.dashboard import router as dashboard_router
 from backend.app.api.report import router as report_router
+from backend.app.api.auth import router as auth_router
 from backend.app.database import initialize_database
 
 
@@ -48,6 +49,7 @@ app.include_router(evaluation_router)
 app.include_router(batch_evaluation_router)
 app.include_router(dashboard_router)
 app.include_router(report_router)
+app.include_router(auth_router)
 
 
 @app.get("/health")
