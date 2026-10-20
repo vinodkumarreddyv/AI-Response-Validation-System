@@ -66,16 +66,14 @@ def load_vector_store():
     else:
         print(f"Notice: chunks.json file not found at {CHUNKS_PATH}")
 
-load_vector_store()
-
 
 # ============================================================
 # EMBEDDING MODEL
 # ============================================================
 
-from backend.app.services.embedding_model import get_shared_embedding_model
+from backend.app.services.embedding_model import LazyEmbeddingModel
 
-model = get_shared_embedding_model("all-MiniLM-L6-v2")
+model = LazyEmbeddingModel("all-MiniLM-L6-v2")
 
 
 # ============================================================

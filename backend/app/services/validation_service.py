@@ -1,13 +1,13 @@
 import re
 import numpy as np
-from backend.app.services.embedding_model import get_shared_embedding_model
+from backend.app.services.embedding_model import LazyEmbeddingModel
 
 
 # ============================================================
 # MODEL
 # ============================================================
 
-model = get_shared_embedding_model("all-MiniLM-L6-v2")
+model = LazyEmbeddingModel("all-MiniLM-L6-v2")
 
 
 # ============================================================

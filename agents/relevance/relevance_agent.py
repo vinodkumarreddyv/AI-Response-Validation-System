@@ -1,13 +1,13 @@
 from typing import Dict
 import re
 import numpy as np
-from backend.app.services.embedding_model import get_shared_embedding_model
+from backend.app.services.embedding_model import LazyEmbeddingModel
 
 
 # Use the same embedding model used by the knowledge base
 MODEL_NAME = "all-MiniLM-L6-v2"
 
-_model = get_shared_embedding_model(MODEL_NAME)
+_model = LazyEmbeddingModel(MODEL_NAME)
 
 
 STOP_WORDS = {
