@@ -4,7 +4,7 @@ import { API_ENDPOINTS } from "./apiConfig";
 
 const API_URL = API_ENDPOINTS.EVALUATION_SUBMIT;
 
-function Validator({ user, openAuthModal, handleRefillCredits, deductCreditLocally }) {
+function Validator({ user, openAuthModal }) {
   const [question, setQuestion] = useState("");
   const [aiResponse, setAiResponse] = useState("");
   const [referenceAnswer, setReferenceAnswer] = useState("");
@@ -71,11 +71,6 @@ function Validator({ user, openAuthModal, handleRefillCredits, deductCreditLocal
       return;
     }
 
-    if (user && user.credits <= 0) {
-      setError("You have 0 evaluation credits remaining. Please refill to continue testing!");
-      return;
-    }
-
     setLoading(true);
 
     try {
@@ -114,12 +109,6 @@ function Validator({ user, openAuthModal, handleRefillCredits, deductCreditLocal
       }
 
       setResult(data.validation || data);
-
-      if (typeof data.credits === "number" && deductCreditLocally) {
-        deductCreditLocally(data.credits);
-      } else if (user && deductCreditLocally) {
-        deductCreditLocally();
-      }
     } catch (err) {
       console.error(err);
       setError(
@@ -342,10 +331,10 @@ function Validator({ user, openAuthModal, handleRefillCredits, deductCreditLocal
             {!user && (
               <div className="validator-guest-banner" onClick={openAuthModal}>
                 <div className="guest-banner-left">
-                  <span className="guest-banner-bolt">⚡</span>
+                  <span className="guest-banner-bolt">👤</span>
                   <div>
-                    <strong>Sign In to Claim 50 Free Credits</strong>
-                    <span>Evaluate responses, track history, and sync across devices</span>
+                    <strong>Sign In with Google or Phone Number</strong>
+                    <span>Save your evaluation history and sync across devices</span>
                   </div>
                 </div>
                 <button type="button" className="guest-banner-action-btn">
@@ -354,56 +343,38 @@ function Validator({ user, openAuthModal, handleRefillCredits, deductCreditLocal
               </div>
             )}
 
-            {/* ERROR NOTIFICATION WITH QUICK REFILL BUTTON */}
             {error && (
               <div className="error-box">
                 <span>⚠</span>
-                <div style={{ flex: 1 }}>
+                <div>
                   <strong>Validation Notice</strong>
                   <p>{error}</p>
-                  {(error.includes("0 evaluation credits") || error.includes("credits")) && (
-                    <button
-                      type="button"
-                      className="error-refill-btn"
-                      onClick={handleRefillCredits}
-                    >
-                      ⚡ Refill +50 Free Credits Now
-                    </button>
-                  )}
                 </div>
               </div>
             )}
 
-            <div className="validate-action-wrapper">
-              <button
-                className="validate-button"
-                onClick={validateResponse}
-                disabled={loading || !!result}
-              >
-                {loading ? (
-                  <>
-                    <span className="spinner"></span>
-                    Analyzing response...
-                  </>
-                ) : result ? (
-                  <>
-                    Response Validated
-                    <span>✓</span>
-                  </>
-                ) : (
-                  <>
-                   Validate Response
-                   <span>→</span>
-                  </>
-                )}
-              </button>
-
-              <div className="validate-cost-pill">
-                <span className="cost-bolt">⚡</span>
-                <span>1 Credit / Evaluation</span>
-                {user && <span className="cost-balance">({user.credits} remaining)</span>}
-              </div>
-            </div>
+            <button
+              className="validate-button"
+              onClick={validateResponse}
+              disabled={loading || !!result}
+            >
+              {loading ? (
+                <>
+                  <span className="spinner"></span>
+                  Analyzing response...
+                </>
+              ) : result ? (
+                <>
+                  Response Validated
+                  <span>✓</span>
+                </>
+              ) : (
+                <>
+                 Validate Response
+                 <span>→</span>
+                </>
+              )}
+            </button>
           </div>
 
           {/* RESULT PANEL */}

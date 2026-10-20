@@ -83,11 +83,6 @@ def process_evaluation(
     validation["weights"] = verdict_result["weights"]
     validation["verdict_reasoning"] = verdict_result["reasoning"]
 
-    remaining_credits = None
-    if getattr(data, "user_id", None):
-        from backend.app.database import update_user_credits
-        remaining_credits = update_user_credits(data.user_id, -1)
-
     submission_id = save_evaluation(
         question=data.question,
         ai_response=data.ai_response,
@@ -107,6 +102,5 @@ def process_evaluation(
         "source_document": data.source_document,
         "retrieved_evidence": evidence,
         "validation": validation,
-        "verdict": verdict_result,
-        "credits": remaining_credits
+        "verdict": verdict_result
     }
