@@ -136,6 +136,18 @@ class PhoneVerifyOtpRequest(BaseModel):
     name: Optional[str] = None
 
 
+class DualSendOtpRequest(BaseModel):
+    email: Optional[str] = None
+    phone: Optional[str] = None
+
+
+class DualVerifyOtpRequest(BaseModel):
+    email: Optional[str] = None
+    phone: Optional[str] = None
+    otp: str = Field(..., min_length=4)
+    name: Optional[str] = None
+
+
 class GoogleLoginRequest(BaseModel):
     email: str = Field(..., min_length=3)
     name: Optional[str] = None
@@ -236,6 +248,68 @@ def verify_phone_otp(data: PhoneVerifyOtpRequest):
     return {
         "status": "success",
         "message": "Phone number verified successfully",
+        "user": user
+    }
+
+
+@router.post("/dual/send-otp")
+def send_dual_otp(data: DualSendOtpRequest):
+    clean_email = data.email.strip().lower() if data.email else None
+    clean_phone = re.sub(r"[^\d+]", "", data.phone.strip()) if data.phone else None
+
+    if not clean_email and not clean_phone:
+        raise HTTPException(status_code=400, detail="Please enter an email, a mobile number, or both.")
+
+    otp = str(random.randint(100000, 999999))
+    email_sent_real = False
+    sms_sent_real = False
+
+    if clean_email:
+        save_otp(clean_email, otp, expires_in_sec=300)
+        email_sent_real = send_email_code(clean_email, otp)
+
+    if clean_phone:
+        save_otp(clean_phone, otp, expires_in_sec=300)
+        sms_sent_real = send_sms_code(clean_phone, otp)
+
+    sent_any_real = email_sent_real or sms_sent_real
+
+    return {
+        "status": "success",
+        "message": "Verification code dispatched to both channels.",
+        "email": clean_email,
+        "phone": clean_phone,
+        "email_sent_real": email_sent_real,
+        "sms_sent_real": sms_sent_real,
+        "sent_real": sent_any_real,
+        "demo_otp": otp if not sent_any_real else None
+    }
+
+
+@router.post("/dual/verify")
+def verify_dual_otp(data: DualVerifyOtpRequest):
+    clean_email = data.email.strip().lower() if data.email else None
+    clean_phone = re.sub(r"[^\d+]", "", data.phone.strip()) if data.phone else None
+    otp = data.otp.strip()
+
+    valid_email = verify_otp(clean_email, otp) if clean_email else False
+    valid_phone = verify_otp(clean_phone, otp) if clean_phone else False
+
+    if not (valid_email or valid_phone):
+        raise HTTPException(status_code=400, detail="Invalid or expired verification code.")
+
+    identifier = clean_email or clean_phone
+    provider = "email" if clean_email else "phone"
+    user = get_or_create_user(
+        identifier=identifier,
+        provider=provider,
+        name=data.name or (clean_email.split("@")[0].title() if clean_email else f"User {clean_phone[-4:]}"),
+        avatar=""
+    )
+
+    return {
+        "status": "success",
+        "message": "Verified successfully",
         "user": user
     }
 
