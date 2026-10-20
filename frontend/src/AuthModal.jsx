@@ -52,8 +52,10 @@ export default function AuthModal({ isOpen, onClose, onLoginSuccess }) {
       setEmailOtpSent(true);
       setEmailSentReal(Boolean(data.sent_real));
       setEmailHintOtp(data.demo_otp || "");
-      if (data.demo_otp) {
+      if (!data.sent_real && data.demo_otp) {
         setEmailOtpCode(data.demo_otp);
+      } else {
+        setEmailOtpCode("");
       }
     } catch (err) {
       console.error(err);
@@ -124,8 +126,10 @@ export default function AuthModal({ isOpen, onClose, onLoginSuccess }) {
       setOtpSent(true);
       setPhoneSentReal(Boolean(data.sent_real));
       setHintOtp(data.demo_otp || "");
-      if (data.demo_otp) {
+      if (!data.sent_real && data.demo_otp) {
         setOtpCode(data.demo_otp);
+      } else {
+        setOtpCode("");
       }
     } catch (err) {
       console.error(err);
@@ -282,21 +286,23 @@ export default function AuthModal({ isOpen, onClose, onLoginSuccess }) {
               </>
             ) : (
               <>
-                <div className="otp-info-banner">
-                  <span className="otp-info-icon">✉️</span>
+                <div className={`otp-info-banner ${emailSentReal ? "real-success" : ""}`}>
+                  <span className="otp-info-icon">{emailSentReal ? "✅" : "✉️"}</span>
                   <div>
-                    <div className="otp-info-title">Code sent to {email}</div>
+                    <div className="otp-info-title">
+                      {emailSentReal ? `Code Delivered to ${email}` : `Code Dispatched to ${email}`}
+                    </div>
                     <div className="otp-info-sub">
                       {emailSentReal
                         ? "Check your inbox (and spam folder) for the 6-digit code."
-                        : "Enter the 6-digit code to complete verification."}
+                        : "To receive real emails, add SMTP credentials in Render. For testing now, enter code below."}
                     </div>
                   </div>
                 </div>
 
-                {emailHintOtp && (
+                {!emailSentReal && emailHintOtp && (
                   <div className="otp-demo-hint">
-                    ✨ <strong>Verification Code:</strong> <code>{emailHintOtp}</code> (or <code>123456</code>)
+                    ✨ <strong>SMTP Gateway unconfigured:</strong> Verification code is <code>{emailHintOtp}</code>
                   </div>
                 )}
 
@@ -386,21 +392,23 @@ export default function AuthModal({ isOpen, onClose, onLoginSuccess }) {
               </>
             ) : (
               <>
-                <div className="otp-info-banner">
-                  <span className="otp-info-icon">📱</span>
+                <div className={`otp-info-banner ${phoneSentReal ? "real-success" : ""}`}>
+                  <span className="otp-info-icon">{phoneSentReal ? "📲" : "📱"}</span>
                   <div>
-                    <div className="otp-info-title">Code sent to {phoneCountry} {phoneNumber}</div>
+                    <div className="otp-info-title">
+                      {phoneSentReal ? `SMS Sent to ${phoneCountry} ${phoneNumber}` : `Code Dispatched to ${phoneCountry} ${phoneNumber}`}
+                    </div>
                     <div className="otp-info-sub">
                       {phoneSentReal
-                        ? "SMS sent to your phone. Enter the code below."
-                        : "Enter the 6-digit code to complete verification."}
+                        ? "Check your mobile phone messages for the 6-digit text."
+                        : "To receive real SMS on your phone, set FAST2SMS_API_KEY or TWILIO in Render. For testing now, enter code below."}
                     </div>
                   </div>
                 </div>
 
-                {hintOtp && (
+                {!phoneSentReal && hintOtp && (
                   <div className="otp-demo-hint">
-                    ✨ <strong>Verification Code:</strong> <code>{hintOtp}</code> (or <code>123456</code>)
+                    ✨ <strong>SMS Gateway unconfigured:</strong> Verification code is <code>{hintOtp}</code>
                   </div>
                 )}
 
