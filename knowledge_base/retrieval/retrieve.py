@@ -1286,6 +1286,12 @@ def retrieve(
     query: str,
     top_k: int = 5
 ):
+    global index, chunks
+    if index is None or not chunks:
+        load_vector_store()
+
+    if index is None or not chunks:
+        return []
 
     # --------------------------------------------------------
     # 1. DIRECT FACT SEARCH
@@ -1300,18 +1306,14 @@ def retrieve(
     # 2. FAISS SEMANTIC SEARCH
     # --------------------------------------------------------
 
+    total_vectors = getattr(index, "ntotal", len(chunks))
+
     search_k = min(
-
         max(
-
             top_k * 30,
-
             150
-
         ),
-
-        index.ntotal
-
+        total_vectors
     )
 
 
