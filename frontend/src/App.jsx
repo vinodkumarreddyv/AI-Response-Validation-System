@@ -114,7 +114,7 @@ function App() {
                         : "👤"}
                     </div>
                   )}
-                  <span className="nav-user-name">{user.name || "Vinod Kumar Reddy"}</span>
+                  <span className="nav-user-name">{user.name || "User"}</span>
                   <span className="nav-caret">▾</span>
                 </button>
 
@@ -122,9 +122,9 @@ function App() {
                 {userMenuOpen && (
                   <div className="nav-user-dropdown" onClick={(e) => e.stopPropagation()}>
                     <div className="user-dropdown-header">
-                      <div className="user-dropdown-name">{user.name || "Vinod Kumar Reddy"}</div>
+                      <div className="user-dropdown-name">{user.name || "User"}</div>
                       <div className="user-dropdown-sub">
-                        {user.email || user.phone || "vinodkumarreddy@gmail.com"}
+                        {user.email || user.phone || "user@example.com"}
                       </div>
                       <div className="user-dropdown-badge">
                         Logged in via {user.provider === "google" ? "Google / Gmail" : user.provider === "phone" ? "Mobile Phone" : "Demo Guest"}

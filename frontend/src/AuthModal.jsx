@@ -107,7 +107,7 @@ export default function AuthModal({ isOpen, onClose, onLoginSuccess }) {
         body: JSON.stringify({
           phone: fullPhone,
           otp: otpCode.trim(),
-          name: phoneName.trim() || "Vinod Kumar Reddy",
+          name: phoneName.trim() || `User ${phoneNumber.slice(-4)}`,
         }),
       });
 
@@ -133,7 +133,7 @@ export default function AuthModal({ isOpen, onClose, onLoginSuccess }) {
       const res = await fetch(API_ENDPOINTS.AUTH_GUEST, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: "Vinod Kumar Reddy" }),
+        body: JSON.stringify({ name: "Demo User" }),
       });
 
       const data = await res.json();
@@ -208,7 +208,7 @@ export default function AuthModal({ isOpen, onClose, onLoginSuccess }) {
           <div className="auth-tab-content">
             <button
               className="google-one-click-btn"
-              onClick={() => handleGoogleSubmit("vinodkumarreddy@gmail.com", "Vinod Kumar Reddy")}
+              onClick={() => handleGoogleSubmit("demo.user@gmail.com", "Demo User")}
               disabled={loading}
             >
               <svg viewBox="0 0 24 24" width="20" height="20">
@@ -217,7 +217,7 @@ export default function AuthModal({ isOpen, onClose, onLoginSuccess }) {
                 <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
                 <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
               </svg>
-              <span>{loading ? "Authenticating..." : "1-Click Sign In (Vinod Kumar Reddy)"}</span>
+              <span>{loading ? "Authenticating..." : "1-Click Sign In with Google"}</span>
             </button>
 
             <div className="auth-divider">
@@ -228,7 +228,7 @@ export default function AuthModal({ isOpen, onClose, onLoginSuccess }) {
               <label>Gmail / Google Email</label>
               <input
                 type="email"
-                placeholder="e.g. vinodkumarreddy@gmail.com"
+                placeholder="e.g. alex@gmail.com"
                 value={googleEmail}
                 onChange={(e) => setGoogleEmail(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && handleGoogleSubmit()}
@@ -239,7 +239,7 @@ export default function AuthModal({ isOpen, onClose, onLoginSuccess }) {
               <label>Your Name</label>
               <input
                 type="text"
-                placeholder="e.g. Vinod Kumar Reddy"
+                placeholder="e.g. Alex Morgan"
                 value={googleName}
                 onChange={(e) => setGoogleName(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && handleGoogleSubmit()}
@@ -291,7 +291,7 @@ export default function AuthModal({ isOpen, onClose, onLoginSuccess }) {
                   <label>Your Name</label>
                   <input
                     type="text"
-                    placeholder="e.g. Vinod Kumar Reddy"
+                    placeholder="e.g. Alex Morgan"
                     value={phoneName}
                     onChange={(e) => setPhoneName(e.target.value)}
                     onKeyDown={(e) => e.key === "Enter" && handleSendPhoneOtp()}
@@ -371,7 +371,7 @@ export default function AuthModal({ isOpen, onClose, onLoginSuccess }) {
               onClick={handleGuestLogin}
               disabled={loading}
             >
-              {loading ? "Initializing..." : "Start Instant Demo (Vinod Kumar Reddy) 🚀"}
+              {loading ? "Initializing..." : "Start Instant Demo 🚀"}
             </button>
           </div>
         )}

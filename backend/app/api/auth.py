@@ -112,7 +112,7 @@ def verify_phone_otp(data: PhoneVerifyOtpRequest):
 @router.post("/guest")
 def login_guest(data: Optional[GuestLoginRequest] = None):
     guest_id = (data.guest_id if data and data.guest_id else f"guest_{random.randint(1000, 9999)}")
-    name = (data.name if data and data.name else "Vinod Kumar Reddy")
+    name = (data.name if data and data.name else "Demo User")
 
     user = get_or_create_user(
         identifier=guest_id,

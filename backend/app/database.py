@@ -516,7 +516,7 @@ def get_or_create_user(
             connection.close()
             return dict(updated)
         else:
-            display_name = name or "Vinod Kumar Reddy"
+            display_name = name or f"User {clean_id[-4:]}"
             cursor = connection.execute(
                 """
                 INSERT INTO users (phone, name, avatar, provider, credits)
@@ -552,7 +552,7 @@ def get_or_create_user(
             connection.close()
             return dict(updated)
         else:
-            display_name = name or "Vinod Kumar Reddy"
+            display_name = name or "Demo User"
             cursor = connection.execute(
                 """
                 INSERT INTO users (email, name, avatar, provider, credits)
