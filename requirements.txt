@@ -6,3 +6,5 @@ numpy
 faiss-cpu
 sentence-transformers
 gdown
+requests
+python-multipart
