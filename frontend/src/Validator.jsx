@@ -98,16 +98,22 @@ function Validator({ user, openAuthModal }) {
         body: JSON.stringify(payload),
       });
 
-      const data = await response.json();
-
       if (!response.ok) {
-        throw new Error(
-          data.detail
-            ? JSON.stringify(data.detail)
-            : `Request failed with status ${response.status}`
-        );
+        let errMessage = `Server returned error status ${response.status}`;
+        try {
+          const errData = await response.json();
+          if (errData?.detail) {
+            errMessage = typeof errData.detail === "string" ? errData.detail : JSON.stringify(errData.detail);
+          }
+        } catch {
+          if (response.status === 502 || response.status === 503 || response.status === 504) {
+            errMessage = "Backend server is currently restarting or waking up (HTTP 502/503). Please retry in 30 seconds.";
+          }
+        }
+        throw new Error(errMessage);
       }
 
+      const data = await response.json();
       setResult(data.validation || data);
     } catch (err) {
       console.error(err);
