@@ -2,7 +2,7 @@
   "rewrites": [
     {
       "source": "/api/:path*",
-      "destination": "https://ai-response-validation-system-1-dfxe.onrender.com/api/:path*"
+      "destination": "https://vinod7777-ai-response-validation.hf.space/api/:path*"
     },
     {
       "source": "/(.*)",
